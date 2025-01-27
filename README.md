@@ -1,4 +1,4 @@
-# Yellow Pages Crawler
+# GemLeads
 
 A web application that allows users to search and scrape business information from Golden Pages Ireland. The application provides a user-friendly interface to search for businesses by type and location, and automatically extracts contact information including email addresses.
 
@@ -22,8 +22,8 @@ A web application that allows users to search and scrape business information fr
 
 1. Clone the repository:
 ```bash
-git clone https://github.com/yourusername/yellow-pages-crawler.git
-cd yellow-pages-crawler
+git clone https://github.com/moyavallsa/gemleads.git
+cd gemleads
 ```
 
 2. Create a virtual environment and activate it:
@@ -58,7 +58,7 @@ python app.py
 ## Project Structure
 
 ```
-yellow-pages-crawler/
+gemleads/
 ├── app.py              # Main Flask application
 ├── requirements.txt    # Python dependencies
 ├── templates/         # HTML templates
