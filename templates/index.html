@@ -1,0 +1,411 @@
+{% extends "base.html" %}
+
+{% block title %}LinkedIn Profile Search{% endblock %}
+
+{% block additional_styles %}
+.hero-section {
+    padding: 50px 0;
+    text-align: center;
+    background: radial-gradient(circle at center, rgba(52, 152, 219, 0.1) 0%, rgba(0, 0, 0, 0) 70%);
+}
+
+.hero-title {
+    font-size: 2.8rem;
+    font-weight: 700;
+    margin-bottom: 20px;
+    opacity: 0;
+    transform: translateY(30px);
+    animation: fadeInUp 0.8s ease forwards;
+}
+
+.hero-subtitle {
+    font-size: 1.1rem;
+    color: #a8a8a8;
+    margin-bottom: 50px;
+    opacity: 0;
+    transform: translateY(30px);
+    animation: fadeInUp 0.8s ease forwards 0.2s;
+}
+
+.search-container {
+    max-width: 1000px;
+    margin: 0 auto;
+    padding: 20px;
+    opacity: 0;
+    transform: translateY(30px);
+    animation: fadeInUp 0.8s ease forwards 0.4s;
+}
+
+.search-box {
+    background: rgba(255, 255, 255, 0.1);
+    border-radius: 15px;
+    padding: 30px;
+    box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+    backdrop-filter: blur(10px);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    transition: transform 0.3s ease, box-shadow 0.3s ease;
+}
+
+.search-box:hover {
+    transform: translateY(-5px);
+    box-shadow: 0 12px 40px rgba(0, 0, 0, 0.2);
+}
+
+.form-group {
+    margin-bottom: 20px;
+}
+
+.form-label {
+    font-weight: 500;
+    margin-bottom: 8px;
+    display: flex;
+    align-items: center;
+}
+
+.form-label i {
+    margin-left: 8px;
+    color: #3498db;
+    cursor: pointer;
+}
+
+.form-control, .form-select {
+    background-color: rgba(255, 255, 255, 0.1);
+    border: 1px solid rgba(255, 255, 255, 0.2);
+    color: #ffffff;
+    border-radius: 10px;
+    padding: 12px;
+    font-size: 1rem;
+    transition: all 0.3s ease;
+}
+
+.form-control:focus, .form-select:focus {
+    background-color: rgba(255, 255, 255, 0.15);
+    border-color: #3498db;
+    box-shadow: 0 0 0 0.25rem rgba(52, 152, 219, 0.25);
+    color: #ffffff;
+}
+
+.form-control::placeholder {
+    color: rgba(255, 255, 255, 0.5);
+}
+
+.form-select option {
+    background-color: #2d2d2d;
+    color: #ffffff;
+}
+
+.btn-generate {
+    background: linear-gradient(135deg, #3498db 0%, #2980b9 100%);
+    border: none;
+    border-radius: 10px;
+    padding: 12px 30px;
+    font-size: 1.1rem;
+    font-weight: 500;
+    color: #ffffff;
+    transition: all 0.3s ease;
+    width: 100%;
+    margin-top: 20px;
+}
+
+.btn-generate:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(52, 152, 219, 0.4);
+}
+
+.result-section {
+    margin-top: 30px;
+    display: none;
+}
+
+.result-box {
+    background: rgba(46, 204, 113, 0.1);
+    border: 1px solid rgba(46, 204, 113, 0.3);
+    border-radius: 10px;
+    padding: 20px;
+    margin-top: 20px;
+}
+
+.copy-btn {
+    background: linear-gradient(135deg, #2ecc71 0%, #27ae60 100%);
+    border: none;
+    border-radius: 10px;
+    padding: 8px 20px;
+    font-size: 0.9rem;
+    color: #ffffff;
+    transition: all 0.3s ease;
+    margin-left: 10px;
+}
+
+.copy-btn:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 5px 15px rgba(46, 204, 113, 0.4);
+}
+
+.tooltip {
+    position: relative;
+    display: inline-block;
+}
+
+.tooltip .tooltiptext {
+    visibility: hidden;
+    background-color: rgba(0, 0, 0, 0.8);
+    color: #fff;
+    text-align: center;
+    border-radius: 6px;
+    padding: 5px 10px;
+    position: absolute;
+    z-index: 1;
+    bottom: 125%;
+    left: 50%;
+    transform: translateX(-50%);
+    opacity: 0;
+    transition: opacity 0.3s;
+}
+
+.tooltip:hover .tooltiptext {
+    visibility: visible;
+    opacity: 1;
+}
+
+@keyframes fadeInUp {
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+{% endblock %}
+
+{% block content %}
+<div class="hero-section">
+    <div class="container">
+        <h1 class="hero-title">Find LinkedIn Profiles</h1>
+        <p class="hero-subtitle">Generate powerful search queries to find the right people on LinkedIn</p>
+        
+        <div class="search-container">
+            <div class="search-box">
+                <form id="searchForm">
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label class="form-label">
+                                    Country
+                                    <i class="fas fa-info-circle tooltip">
+                                        <span class="tooltiptext">Select the country to search in</span>
+                                    </i>
+                                </label>
+                                <select class="form-select" id="country" required>
+                                    <option value="">Select a country...</option>
+                                    <option value="Ireland">Ireland</option>
+                                    <option value="United Kingdom">United Kingdom</option>
+                                    <option value="United States">United States</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label class="form-label">
+                                    Job title
+                                    <i class="fas fa-info-circle tooltip">
+                                        <span class="tooltiptext">Enter the job title you're looking for</span>
+                                    </i>
+                                </label>
+                                <input type="text" class="form-control" id="jobTitle" placeholder="E.g. Sales Manager" required>
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label class="form-label">
+                                    Location or keywords to include
+                                    <i class="fas fa-info-circle tooltip">
+                                        <span class="tooltiptext">Add specific locations or keywords to include in the search</span>
+                                    </i>
+                                </label>
+                                <input type="text" class="form-control" id="includeKeywords" placeholder="E.g. Dublin">
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label class="form-label">
+                                    Keywords to exclude
+                                    <i class="fas fa-info-circle tooltip">
+                                        <span class="tooltiptext">Add keywords to exclude from the search</span>
+                                    </i>
+                                </label>
+                                <input type="text" class="form-control" id="excludeKeywords" placeholder="E.g. Assistant OR secretary">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label class="form-label">
+                                    Education
+                                    <i class="fas fa-info-circle tooltip">
+                                        <span class="tooltiptext">Specify education requirements</span>
+                                    </i>
+                                </label>
+                                <select class="form-select" id="education">
+                                    <option value="">All candidates</option>
+                                    <option value="Bachelor">Bachelor's Degree</option>
+                                    <option value="Master">Master's Degree</option>
+                                    <option value="PhD">PhD</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label class="form-label">
+                                    Current Employer
+                                    <i class="fas fa-info-circle tooltip">
+                                        <span class="tooltiptext">Specify current employer if needed</span>
+                                    </i>
+                                </label>
+                                <input type="text" class="form-control" id="currentEmployer" placeholder="E.g. Google">
+                            </div>
+                        </div>
+                    </div>
+
+                    <div class="row">
+                        <div class="col-md-6">
+                            <div class="form-group">
+                                <label class="form-label">
+                                    Email Provider
+                                    <i class="fas fa-info-circle tooltip">
+                                        <span class="tooltiptext">Select email provider to find profiles with specific email domains</span>
+                                    </i>
+                                </label>
+                                <select class="form-select" id="emailProvider">
+                                    <option value="">Any email</option>
+                                    <option value="gmail.com">Gmail</option>
+                                    <option value="yahoo.com">Yahoo</option>
+                                    <option value="yahoo.ie">Yahoo Ireland</option>
+                                    <option value="yahoo.co.uk">Yahoo UK</option>
+                                    <option value="hotmail.com">Hotmail</option>
+                                    <option value="hotmail.co.uk">Hotmail UK</option>
+                                    <option value="hotmail.ie">Hotmail Ireland</option>
+                                    <option value="outlook.com">Outlook</option>
+                                    <option value="outlook.ie">Outlook Ireland</option>
+                                    <option value="live.com">Live</option>
+                                    <option value="live.ie">Live Ireland</option>
+                                    <option value="msn.com">MSN</option>
+                                    <option value="icloud.com">iCloud</option>
+                                    <option value="me.com">Me.com (Apple)</option>
+                                    <option value="mac.com">Mac.com (Apple)</option>
+                                    <option value="aol.com">AOL</option>
+                                    <option value="eircom.net">Eircom</option>
+                                    <option value="btinternet.com">BT Internet</option>
+                                    <option value="sky.com">Sky</option>
+                                    <option value="virginmedia.com">Virgin Media</option>
+                                    <option value="protonmail.com">ProtonMail</option>
+                                    <option value="zoho.com">Zoho</option>
+                                    <option value="yandex.com">Yandex</option>
+                                    <option value="mail.com">Mail.com</option>
+                                    <option value="gmx.com">GMX</option>
+                                </select>
+                            </div>
+                        </div>
+                    </div>
+
+                    <button type="submit" class="btn btn-generate">
+                        <i class="fas fa-search"></i> Generate Search Query
+                    </button>
+                </form>
+            </div>
+
+            <div class="result-section" id="resultSection">
+                <div class="result-box">
+                    <div class="d-flex justify-content-between align-items-center">
+                        <h4 class="mb-0">Your Google Search Query:</h4>
+                        <button class="copy-btn" onclick="copyQuery()">
+                            <i class="fas fa-copy"></i> Copy
+                        </button>
+                    </div>
+                    <p class="mt-3 mb-0" id="searchQuery"></p>
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+{% endblock %}
+
+{% block additional_scripts %}
+<script>
+    document.getElementById('searchForm').onsubmit = function(e) {
+        e.preventDefault();
+        
+        const country = document.getElementById('country').value;
+        const jobTitle = document.getElementById('jobTitle').value;
+        const includeKeywords = document.getElementById('includeKeywords').value;
+        const excludeKeywords = document.getElementById('excludeKeywords').value;
+        const education = document.getElementById('education').value;
+        const currentEmployer = document.getElementById('currentEmployer').value;
+        const emailProvider = document.getElementById('emailProvider').value;
+
+        // Start with the base Google search URL
+        let query = 'https://www.google.com/search?q=';
+        
+        // Add job title if provided
+        if (jobTitle) {
+            query += `+"${jobTitle}"`;
+        }
+        
+        // Add location if provided
+        if (includeKeywords) {
+            query += `+"${includeKeywords}"`;
+        }
+
+        // Add email provider if selected
+        if (emailProvider) {
+            query += ` "@${emailProvider}"`;
+        }
+        
+        // Add standard LinkedIn profile search parameters
+        query += ' -intitle:"profiles" -inurl:"dir/+"';
+        
+        // Add site specific search based on country
+        if (country === 'Ireland') {
+            query += ' +site:ie.linkedin.com/in/+OR+site:ie.linkedin.com/pub/';
+        } else if (country === 'United Kingdom') {
+            query += ' +site:uk.linkedin.com/in/+OR+site:uk.linkedin.com/pub/';
+        } else if (country === 'United States') {
+            query += ' +site:linkedin.com/in/+OR+site:linkedin.com/pub/';
+        }
+        
+        // Add education if specified
+        if (education && education !== "All candidates") {
+            query += ` +"${education}"`;
+        }
+        
+        // Add current employer if specified
+        if (currentEmployer) {
+            query += ` +"${currentEmployer}"`;
+        }
+        
+        // Add excluded keywords if specified
+        if (excludeKeywords) {
+            const excluded = excludeKeywords.split('OR').map(keyword => 
+                `-"${keyword.trim()}"`
+            ).join(' ');
+            query += ` ${excluded}`;
+        }
+
+        document.getElementById('searchQuery').textContent = query.trim();
+        document.getElementById('resultSection').style.display = 'block';
+    };
+
+    function copyQuery() {
+        const queryText = document.getElementById('searchQuery').textContent;
+        navigator.clipboard.writeText(queryText).then(() => {
+            const copyBtn = document.querySelector('.copy-btn');
+            copyBtn.innerHTML = '<i class="fas fa-check"></i> Copied!';
+            setTimeout(() => {
+                copyBtn.innerHTML = '<i class="fas fa-copy"></i> Copy';
+            }, 2000);
+        });
+    }
+</script>
+{% endblock %} 
