@@ -7,7 +7,6 @@ import random
 import requests
 from bs4 import BeautifulSoup
 import urllib.parse
-import json
 import re
 from selenium import webdriver
 from selenium.webdriver.common.by import By
@@ -17,15 +16,18 @@ from selenium.common.exceptions import TimeoutException, NoSuchElementException
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.chrome.service import Service
 from webdriver_manager.chrome import ChromeDriverManager
+import argparse
+from shutil import which
+from gemini_analyzer import GeminiAnalyzer
+from pathlib import Path
 
 app = Flask(__name__)
 
 class GoldenPagesScraper:
-    BASE_URL = "https://www.goldenpages.ie"
-    
     def __init__(self):
+        self.base_url = "https://www.goldenpages.ie"
         self.session = requests.Session()
-        self.session.headers.update({
+        self.headers = {
             'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36',
             'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
             'Accept-Language': 'en-US,en;q=0.9',
@@ -33,468 +35,840 @@ class GoldenPagesScraper:
             'Connection': 'keep-alive',
             'Cache-Control': 'no-cache',
             'Pragma': 'no-cache',
-            'Upgrade-Insecure-Requests': '1',
-            'Sec-Fetch-Dest': 'document',
-            'Sec-Fetch-Mode': 'navigate',
-            'Sec-Fetch-Site': 'same-origin',
-            'Sec-Fetch-User': '?1'
-        })
-
-    def get_towns(self):
-        """Return a list of major Irish towns."""
-        towns = [
-            'Dublin', 'Cork', 'Galway', 'Limerick', 'Waterford',
-            'Drogheda', 'Dundalk', 'Swords', 'Blackrock', 'Tralee',
-            'Kilkenny', 'Navan', 'Ennis', 'Carlow', 'Naas',
-            'Sligo', 'Monaghan', 'Mullingar', 'Wexford', 'Athlone',
-            'Celbridge', 'Clonmel', 'Bray', 'Greystones', 'Malahide'
-        ]
-        return sorted(towns)
-
-    def scrape_business_data(self, where, what=''):
-        """Scrape business data for a specific location and business type."""
-        businesses = []
-        seen_businesses = set()  # Track seen business names to avoid duplicates
+            'Upgrade-Insecure-Requests': '1'
+        }
+        self.session.headers.update(self.headers)
+        
+        # Optional Selenium WebDriver initialization
+        self.driver = None
         try:
-            print(f"Searching for '{what}' in '{where}'")
-            
-            # Set up Chrome options
+            # Initialize Chrome options for dynamic content
             chrome_options = Options()
             chrome_options.add_argument('--headless')
+            chrome_options.add_argument('--disable-gpu')
             chrome_options.add_argument('--no-sandbox')
             chrome_options.add_argument('--disable-dev-shm-usage')
-            chrome_options.add_argument('--disable-gpu')
             chrome_options.add_argument('--window-size=1920,1080')
-            chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-            chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
-            chrome_options.add_experimental_option('useAutomationExtension', False)
-            chrome_options.add_argument('user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
             
-            # Initialize Chrome driver
-            print("Initializing Chrome driver...")
-            service = Service(ChromeDriverManager().install())
-            driver = webdriver.Chrome(service=service, options=chrome_options)
-            driver.execute_cdp_cmd('Network.setUserAgentOverride', {"userAgent": 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'})
-            driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-            
-            try:
-                # Visit the homepage
-                print("Visiting homepage...")
-                driver.get(self.BASE_URL)
-                time.sleep(2)
-                
-                # Find and fill the search form
-                what_input = WebDriverWait(driver, 10).until(
-                    EC.presence_of_element_located((By.ID, "what"))
-                )
-                what_input.clear()
-                what_input.send_keys(what)
-                
-                where_input = driver.find_element(By.ID, "where")
-                where_input.clear()
-                where_input.send_keys(where)
-                
-                # Submit the form
-                print("Submitting search form...")
-                where_input.submit()
-                time.sleep(3)
-                
-                # Get the current URL after form submission
-                current_url = driver.current_url
-                print(f"Redirected to: {current_url}")
-                
-                # Extract the search results URL from the meta tags
-                meta_url = driver.find_element(By.CSS_SELECTOR, 'meta[property="og:url"]').get_attribute('content')
-                if meta_url:
-                    print(f"Found search results URL: {meta_url}")
-                    current_url = meta_url
-                
-                # Now use requests to continue scraping with the correct URL
-                self.session.headers.update({
-                    'Referer': self.BASE_URL,
-                    'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8',
-                    'Accept-Language': 'en-US,en;q=0.9',
-                    'Cache-Control': 'no-cache',
-                    'Connection': 'keep-alive',
-                    'Sec-Fetch-Dest': 'document',
-                    'Sec-Fetch-Mode': 'navigate',
-                    'Sec-Fetch-Site': 'same-origin',
-                    'Sec-Fetch-User': '?1',
-                    'Upgrade-Insecure-Requests': '1',
-                    'User-Agent': 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'
-                })
-                
-                page_num = 1
-                while True:
-                    print(f"Scraping page {page_num}")
-                    
-                    # Get the page content
-                    response = self.session.get(current_url)
-                    
-                    if not response.ok:
-                        print(f"Failed to get page {page_num}: {response.status_code}")
-                        break
-                    
-                    soup = BeautifulSoup(response.content, 'lxml')
-                    
-                    # Find all business listings
-                    listings = soup.find_all('div', {'class': 'listing_container'})
-                    
-                    if not listings:
-                        print("No listings found on this page")
-                        print("Page content:")
-                        print(soup.prettify()[:1000])
-                        break
-                    
-                    print(f"Found {len(listings)} listings on page {page_num}")
-                    
-                    for listing in listings:
-                        try:
-                            # Extract business information
-                            listing_content = listing.find('div', {'class': 'listing_content'})
-                            if not listing_content:
-                                continue
-                            
-                            # Get business name and URL
-                            name_elem = listing_content.find('h3', {'class': 'listing_title'})
-                            if name_elem:
-                                # Get the text and URL from the link inside the title
-                                title_link = name_elem.find('a', {'class': 'listing_title_link'})
-                                if title_link:
-                                    name = title_link.get_text(strip=True)
-                                    business_url = title_link.get('href')
-                                    if business_url and not business_url.startswith('http'):
-                                        business_url = self.BASE_URL + business_url
-                                else:
-                                    name = name_elem.get_text(strip=True)
-                                    business_url = ''
-                                
-                                # Clean up the name
-                                name = re.sub(r'^\d+\.\s*', '', name)  # Remove leading number
-                                name = re.sub(r'\s*Sponsored\s*$', '', name)  # Remove "Sponsored" text
-                                name = re.sub(r'This is a verified listing\.Find out more$', '', name)  # Remove verification text
-                                name = name.strip()
-                            else:
-                                continue
-                            
-                            # Skip if we've already seen this business
-                            if name.lower() in seen_businesses:
-                                continue
-                            seen_businesses.add(name.lower())
-                            
-                            # Get location
-                            location_elem = listing_content.find('div', {'class': 'listing_address'})
-                            location = location_elem.get_text(strip=True) if location_elem else ''
-                            
-                            # Get phone number
-                            phone_elem = listing_content.find('a', {'class': 'link_listing_number'})
-                            phone = phone_elem.get_text(strip=True) if phone_elem else ''
-                            
-                            # Get business categories
-                            categories_elem = listing_content.find('div', {'class': 'listing_categories'})
-                            business_type = ''
-                            if categories_elem:
-                                categories = categories_elem.find_all('a')
-                                business_type = ', '.join([cat.get_text(strip=True) for cat in categories])
-                            
-                            # Get description
-                            desc_elem = listing_content.find('div', {'class': 'listing_summary'})
-                            description = desc_elem.get_text(strip=True) if desc_elem else ''
-                            
-                            # Get website
-                            website = ''
-                            links_div = listing_content.find('div', {'class': 'listing_links'})
-                            if links_div:
-                                website_elem = links_div.find('a', text='Website')
-                                if website_elem:
-                                    website = website_elem.get('href', '')
-                            
-                            # Visit the business page to get email
-                            email = ''
-                            if business_url:
-                                try:
-                                    print(f"Visiting business page: {business_url}")
-                                    business_response = self.session.get(business_url)
-                                    if business_response.ok:
-                                        business_soup = BeautifulSoup(business_response.content, 'lxml')
-                                        
-                                        # Try to find email in contact information
-                                        contact_info = business_soup.find('div', {'class': ['contact_info', 'business_contact', 'contact-details']})
-                                        if contact_info:
-                                            # Look for email in text content
-                                            text_content = contact_info.get_text()
-                                            email_matches = re.findall(r'[\w\.-]+@[\w\.-]+\.\w+', text_content)
-                                            if email_matches:
-                                                email = email_matches[0]
-                                            else:
-                                                # Look for email links
-                                                email_links = contact_info.find_all('a', href=re.compile(r'mailto:'))
-                                                if email_links:
-                                                    email = email_links[0].get('href', '').replace('mailto:', '')
-                                        
-                                        # If no email found in contact info, try other sections
-                                        if not email:
-                                            # Try to find email in any text content
-                                            text_content = business_soup.get_text()
-                                            email_matches = re.findall(r'[\w\.-]+@[\w\.-]+\.\w+', text_content)
-                                            if email_matches:
-                                                email = email_matches[0]
-                                            else:
-                                                # Try to find any mailto links
-                                                email_links = business_soup.find_all('a', href=re.compile(r'mailto:'))
-                                                if email_links:
-                                                    email = email_links[0].get('href', '').replace('mailto:', '')
-                                
-                                    # Add a small delay between requests
-                                    time.sleep(random.uniform(1, 2))
-                                    
-                                except Exception as e:
-                                    print(f"Error getting email from business page: {e}")
-                            
-                            business = {
-                                'Name': name,
-                                'Business Type': business_type,
-                                'Location': location,
-                                'Phone Number': phone,
-                                'Email': email,
-                                'Website': website,
-                                'Description': description,
-                                'Golden Pages URL': business_url
-                            }
-                            
-                            businesses.append(business)
-                            print(f"Added business: {name} (Email: {email})")
-                        
-                        except Exception as e:
-                            print(f"Error processing listing: {e}")
-                            continue
-                    
-                    # Look for next page link
-                    next_page = soup.find('a', {'class': 'next_page'})
-                    if not next_page:
-                        print("No more pages available")
-                        break
-                    
-                    # Get the next page URL
-                    next_url = next_page.get('href')
-                    if not next_url:
-                        break
-                        
-                    if not next_url.startswith('http'):
-                        next_url = self.BASE_URL + next_url
-                    
-                    # Update current URL for next iteration
-                    current_url = next_url
-                    page_num += 1
-                    time.sleep(random.uniform(2, 3))
-                
-                print(f"Successfully scraped {len(businesses)} businesses")
-                return businesses
-                
-            finally:
-                try:
-                    driver.quit()
-                except:
-                    pass
-            
-        except Exception as e:
-            print(f"Error scraping data: {e}")
-            raise e
-
-class GoogleSearchScraper:
-    def __init__(self):
-        # Set up Chrome options
-        chrome_options = Options()
-        chrome_options.add_argument('--headless')
-        chrome_options.add_argument('--no-sandbox')
-        chrome_options.add_argument('--disable-dev-shm-usage')
-        chrome_options.add_argument('--disable-gpu')
-        chrome_options.add_argument('--window-size=1920,1080')
-        chrome_options.add_argument('--disable-blink-features=AutomationControlled')
-        chrome_options.add_experimental_option('excludeSwitches', ['enable-automation'])
-        chrome_options.add_experimental_option('useAutomationExtension', False)
-        chrome_options.add_argument('user-agent=Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36')
-        
-        # Initialize Chrome driver with webdriver-manager
-        try:
+            # Try to initialize WebDriver
             service = Service(ChromeDriverManager().install())
             self.driver = webdriver.Chrome(service=service, options=chrome_options)
-            self.driver.execute_cdp_cmd('Network.setUserAgentOverride', {"userAgent": 'Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36'})
-            self.driver.execute_script("Object.defineProperty(navigator, 'webdriver', {get: () => undefined})")
-            self.wait = WebDriverWait(self.driver, 10)
+            print("Selenium WebDriver initialized successfully.")
         except Exception as e:
-            print(f"Error initializing Chrome driver: {e}")
-            raise
+            print(f"Could not initialize Selenium WebDriver. Falling back to requests-based scraping: {e}")
+        
+        # Initialize rate limiting
+        self.last_request_time = 0
+        self.min_request_interval = 2  # seconds
 
-    def wait_and_find_element(self, by, value, timeout=10):
-        """Wait for and find an element with retry logic."""
-        try:
-            element = WebDriverWait(self.driver, timeout).until(
-                EC.presence_of_element_located((by, value))
-            )
-            return element
-        except TimeoutException:
-            print(f"Timeout waiting for element: {value}")
-            return None
+        # Initialize progress tracking
+        self.total_processed = 0
+        self.successful_scrapes = 0
+        self.failed_scrapes = 0
+        self.start_time = time.time()
 
-    def scrape_google_results(self, search_query, max_pages=3):
-        """Scrape LinkedIn profiles from Google search results, navigating through multiple pages."""
-        profiles = []
-        try:
-            print(f"Starting search with query: {search_query}")
-            self.driver.get(search_query)
-            time.sleep(3)  # Initial wait for page load
-            
-            page = 1
-            while page <= max_pages:
-                print(f"Scraping page {page} of Google results")
-                
-                # Wait for search results to load
-                try:
-                    # Try different selectors for search results
-                    search_results = []
-                    selectors = ['div.g', 'div.tF2Cxc', 'div.yuRUbf']
-                    for selector in selectors:
-                        search_results = self.driver.find_elements(By.CSS_SELECTOR, selector)
-                        if search_results:
-                            break
-                    
-                    if not search_results:
-                        print("No search results found on this page")
-                        break
-                    
-                    print(f"Found {len(search_results)} results on page {page}")
-                    
-                    for result in search_results:
-                        try:
-                            # Find LinkedIn profile links
-                            link_elem = result.find_element(By.CSS_SELECTOR, 'a')
-                            href = link_elem.get_attribute('href')
-                            
-                            if not href:
-                                continue
-                                
-                            if ('linkedin.com/in/' in href or 'linkedin.com/pub/' in href) and 'linkedin.com/jobs' not in href:
-                                print(f"Found LinkedIn profile: {href}")
-                                
-                                # Get title and description from Google result
-                                try:
-                                    title = result.find_element(By.CSS_SELECTOR, 'h3').text
-                                except NoSuchElementException:
-                                    continue
-                                    
-                                try:
-                                    description = result.find_element(By.CSS_SELECTOR, 'div.VwiC3b').text
-                                except NoSuchElementException:
-                                    description = ''
-                                
-                                # Extract name and position from title
-                                name = title.split(' - ')[0].strip()
-                                position = title.split(' - ')[1].strip() if ' - ' in title else ''
-                                
-                                # Store the data without visiting LinkedIn
-                                profile_data = {
-                                    'name': name,
-                                    'profile_url': href,
-                                    'current_position': position,
-                                    'description': description[:500]
-                                }
-                                
-                                profiles.append(profile_data)
-                                print(f"Added profile data for: {name}")
-                                
-                                # Random delay between profiles
-                                time.sleep(random.uniform(1, 2))
-                        
-                        except Exception as e:
-                            print(f"Error processing search result: {e}")
-                            continue
-                    
-                    # Try to go to next page
-                    try:
-                        next_button = self.driver.find_element(By.ID, 'pnnext')
-                        if not next_button.is_displayed():
-                            print("No more pages available")
-                            break
-                        
-                        next_button.click()
-                        page += 1
-                        time.sleep(random.uniform(2, 3))
-                        
-                    except NoSuchElementException:
-                        print("No more pages available")
-                        break
-                        
-                except Exception as e:
-                    print(f"Error processing page {page}: {e}")
-                    break
-            
-            print(f"Successfully scraped {len(profiles)} profiles")
-            return profiles
-            
-        except Exception as e:
-            print(f"Error during scraping: {e}")
-            return []
-            
-        finally:
+        # Initialize proxy support (disabled by default)
+        self.proxies = []  # Empty list means no proxies
+        self.current_proxy_index = 0
+        self.use_proxies = False  # Disabled by default
+
+        # Website extraction patterns
+        self.website_patterns = [
+            {'class': 'business-website-button'},
+            {'class': 'website-button'},
+            {'class': 'visit-website'},
+            {'class': 'website-url'},
+            {'data-type': 'website'},
+            {'rel': 'nofollow', 'href': True},
+            {'target': '_blank', 'href': True}
+        ]
+
+        # Email extraction patterns
+        self.email_patterns = [
+            r'[\w\.-]+\s*@\s*[\w\.-]+\.\w+',  # Standard email with optional spaces
+            r'[\w\.-]+\[at\][\w\.-]+\.\w+',    # [at] format
+            r'[\w\.-]+\(at\)[\w\.-]+\.\w+',    # (at) format
+            r'[\w\.-]+AT[\w\.-]+DOT\w+',       # AT and DOT format
+            r'[\w\.-]+\s*@\s*(?:gmail|yahoo|hotmail|outlook|live|icloud|me|eircom)\.(?:com|ie)'  # Common providers
+        ]
+        
+        # Set up downloads directory
+        self.downloads_dir = str(Path.home() / "Downloads")
+        if not os.path.exists(self.downloads_dir):
+            os.makedirs(self.downloads_dir)
+
+    def __del__(self):
+        # Safely close the WebDriver if it exists
+        if hasattr(self, 'driver') and self.driver:
             try:
                 self.driver.quit()
-            except:
-                pass
+            except Exception as e:
+                print(f"Error closing WebDriver: {e}")
+
+    def rotate_proxy(self):
+        """Rotate to next proxy if enabled."""
+        if self.use_proxies and self.proxies:
+            proxy = self.proxies[self.current_proxy_index]
+            self.session.proxies = {
+                'http': proxy,
+                'https': proxy
+            }
+            self.current_proxy_index = (self.current_proxy_index + 1) % len(self.proxies)
+            print(f"Rotated to proxy: {proxy}")
+        else:
+            self.session.proxies = {}  # Clear any existing proxies
+
+    def wait_for_rate_limit(self):
+        """Wait to respect rate limiting."""
+        current_time = time.time()
+        time_since_last_request = current_time - self.last_request_time
+        if time_since_last_request < self.min_request_interval:
+            time.sleep(self.min_request_interval - time_since_last_request)
+        self.last_request_time = time.time()
+
+    def make_request_with_retry(self, url, max_retries=3):
+        """Make request with retry logic."""
+        for attempt in range(max_retries):
+            try:
+                self.wait_for_rate_limit()
+                print(f"Attempt {attempt + 1}: Requesting URL: {url}")
+                
+                # Add more headers to mimic browser
+                headers = self.headers.copy()
+                headers['Referer'] = self.base_url
+                headers['Origin'] = self.base_url
+                
+                response = self.session.get(url, headers=headers, timeout=15)
+                
+                print(f"Response status: {response.status_code}")
+                
+                if response.ok:
+                    # Log response content length for debugging
+                    print(f"Response content length: {len(response.content)} bytes")
+                    return response
+                
+                if response.status_code == 403:  # Forbidden - likely IP block
+                    print("Received 403 Forbidden. Rotating proxy...")
+                    self.rotate_proxy()
+                
+                if response.status_code == 429:  # Too Many Requests
+                    print("Rate limited. Waiting before retry...")
+                    time.sleep(5 * (attempt + 1))
+                
+                time.sleep((attempt + 1) * 2)  # Exponential backoff
+            
+            except requests.exceptions.RequestException as e:
+                print(f"Request failed (attempt {attempt + 1}/{max_retries}): {e}")
+                
+                if isinstance(e, requests.exceptions.ConnectionError):
+                    print("Connection error. Checking network...")
+                elif isinstance(e, requests.exceptions.Timeout):
+                    print("Request timed out. Checking connection...")
+                
+                if attempt == max_retries - 1:
+                    raise
+                
+                self.rotate_proxy()  # Try a different proxy
+                time.sleep((attempt + 1) * 2)
+        
+        return None
+
+    def update_progress(self, success=True):
+        """Update progress metrics."""
+        self.total_processed += 1
+        if success:
+            self.successful_scrapes += 1
+        else:
+            self.failed_scrapes += 1
+        elapsed_time = time.time() - self.start_time
+        rate = self.total_processed / elapsed_time if elapsed_time > 0 else 0
+        print(f"Processed: {self.total_processed}, Success: {self.successful_scrapes}, "
+              f"Failed: {self.failed_scrapes}, Rate: {rate:.2f}/s")
+
+    def validate_business_data(self, data):
+        """Validate scraped business data."""
+        required_fields = ['name', 'location', 'county']
+        for field in required_fields:
+            if not data.get(field):
+                return False
+                
+        if 'website' in data:
+            if not self.is_valid_website(data['website']):
+                data.pop('website')
+                
+        if 'email' in data:
+            if not self.is_valid_email(data['email']):
+                data.pop('email')
+                
+        return True
+
+    def extract_business_details(self, business_url, county):
+        """Extract detailed business information from a specific business page."""
+        try:
+            print("\n" + "="*50)
+            print(f"Processing business at: {business_url}")
+            
+            response = self.make_request_with_retry(business_url)
+            if not response:
+                return {}
+
+            soup = BeautifulSoup(response.content, 'lxml')
+            details = {}
+            
+            # Extract business name
+            business_name = soup.find('h1')
+            if business_name:
+                details['name'] = business_name.text.strip()
+                print(f"Found business name: {details['name']}")
+
+            # 1. Extract phone numbers (Primary focus)
+            # Look for phone numbers in multiple formats
+            phone_patterns = [
+                # Look for tel: links
+                ('a', {'href': lambda x: x and 'tel:' in x}),
+                # Look for elements with phone-related classes
+                (['span', 'div', 'p'], {'class': lambda x: x and any(term in str(x).lower() for term in ['phone', 'tel', 'mobile', 'contact'])}),
+                # Look for elements with phone-related text
+                (['span', 'div', 'p'], {'text': lambda x: x and any(term in str(x).lower() for term in ['phone:', 'tel:', 'mobile:', 'call:'])})
+            ]
+            
+            found_phones = set()
+            for tag, attrs in phone_patterns:
+                elements = soup.find_all(tag, attrs)
+                for elem in elements:
+                    if 'href' in elem.attrs and 'tel:' in elem['href']:
+                        phone = elem['href'].replace('tel:', '').strip()
+                        found_phones.add(phone)
+                    else:
+                        # Extract numbers from text content
+                        text = elem.get_text(strip=True)
+                        # Look for numbers in format (XXX) XXXXXXX or similar
+                        phone_matches = re.findall(r'[\(]?\d{2,3}[\)]?\s*\d{3,4}[\s-]?\d{4}', text)
+                        found_phones.update(phone_matches)
+            
+            if found_phones:
+                phones = list(found_phones)
+                details['phone'] = phones[0]  # Primary phone
+                if len(phones) > 1:
+                    details['additional_phones'] = phones[1:]
+                print(f"Found phone number(s): {phones}")
+
+            # 2. Extract email addresses (Second priority)
+            # Look for emails in multiple formats
+            email_patterns = [
+                # Look for mailto: links
+                ('a', {'href': lambda x: x and 'mailto:' in x}),
+                # Look for elements with email-related classes
+                (['span', 'div', 'p'], {'class': lambda x: x and any(term in str(x).lower() for term in ['email', 'mail', 'contact'])}),
+                # Look for elements with email-related text
+                (['span', 'div', 'p'], {'text': lambda x: x and 'email' in str(x).lower()})
+            ]
+            
+            found_emails = set()
+            for tag, attrs in email_patterns:
+                elements = soup.find_all(tag, attrs)
+                for elem in elements:
+                    if 'href' in elem.attrs and 'mailto:' in elem['href']:
+                        email = elem['href'].replace('mailto:', '').strip()
+                        found_emails.add(email)
+                    else:
+                        # Extract email from text content
+                        text = elem.get_text(strip=True)
+                        email_matches = re.findall(r'[\w\.-]+@[\w\.-]+\.\w+', text)
+                        found_emails.update(email_matches)
+            
+            if found_emails:
+                emails = list(found_emails)
+                details['email'] = emails[0]  # Primary email
+                if len(emails) > 1:
+                    details['additional_emails'] = emails[1:]
+                print(f"Found email(s): {emails}")
+
+            # 3. Extract website (Third priority)
+            website_elements = soup.find_all('a', href=True)
+            for elem in website_elements:
+                href = elem['href'].lower()
+                if (
+                    ('website' in str(elem).lower() or 'globe' in str(elem).lower()) and
+                    href.startswith('http') and
+                    'goldenpages' not in href and
+                    'facebook' not in href and
+                    'twitter' not in href and
+                    'linkedin' not in href
+                ):
+                    details['website'] = href
+                    print(f"Found website: {href}")
+                    break
+
+            # 4. Extract location and categories
+            location_elem = soup.find(['div', 'span', 'p'], {'class': lambda x: x and 'address' in str(x).lower()})
+            if location_elem:
+                details['location'] = location_elem.get_text(strip=True)
+                print(f"Found location: {details['location']}")
+
+            categories_elem = soup.find(['div', 'span'], {'class': lambda x: x and 'categor' in str(x).lower()})
+            if categories_elem:
+                details['categories'] = categories_elem.get_text(strip=True)
+                print(f"Found categories: {details['categories']}")
+
+            # Add county information
+            if county:
+                details['county'] = county
+
+            # Summary
+            print("-"*50)
+            print("Summary:")
+            print(f"Phone: {'Yes' if 'phone' in details else 'No'}")
+            print(f"Email: {'Yes' if 'email' in details else 'No'}")
+            print(f"Website: {'Yes' if 'website' in details else 'No'}")
+            print("="*50 + "\n")
+
+            return details
+
+        except Exception as e:
+            print(f"Error extracting business details: {e}")
+            return {}
+
+    def is_valid_email(self, email):
+        """Validate email format and domain."""
+        if not email:
+            return False
+        
+        # Common email domains to look for
+        valid_domains = [
+            'gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com',
+            'live.com', 'icloud.com', 'me.com', 'yahoo.ie', 'hotmail.ie',
+            'eircom.net', 'gmail.ie', 'googlemail.com', 'apple.com'
+        ]
+        
+        try:
+            # Basic pattern matching
+            if not re.match(r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$', email):
+                return False
+            
+            # Check domain
+            domain = email.split('@')[1].lower()
+            if domain in valid_domains:
+                return True
+                
+            # Also accept business domains (anything not in common domains)
+            return True
+            
+        except:
+            return False
+
+    def is_valid_website(self, url):
+        """
+        Validate website URL with strict rules.
+        
+        Args:
+            url (str): URL to validate
+            
+        Returns:
+            bool: True if valid website URL, False otherwise
+        """
+        if not url:
+            return False
+            
+        try:
+            # Clean the URL
+            url = url.strip().lower()
+            
+            # Must start with http or https
+            if not url.startswith(('http://', 'https://')):
+                return False
+            
+            # Exclude common non-website URLs
+            excluded_domains = [
+                'goldenpages.ie',
+                'getlocal.ie',
+                'go.gpi.ie',
+                'tel:',
+                'mailto:',
+                'javascript:',
+                'whatsapp:',
+                'facebook.com/goldenpages',
+                'twitter.com/goldenpages',
+                'instagram.com/goldenpages',
+                'linkedin.com/company/golden-pages',
+                'youtube.com/goldenpages',
+                'pinterest.com/goldenpages'
+            ]
+            
+            # Check if it's not a Golden Pages related link
+            if any(domain in url for domain in excluded_domains):
+                return False
+            
+            # Basic URL validation
+            parsed = urllib.parse.urlparse(url)
+            
+            # Check for valid scheme and netloc (domain)
+            if not all([parsed.scheme in ['http', 'https'], parsed.netloc]):
+                return False
+            
+            # Check for suspicious or invalid domains
+            suspicious_patterns = [
+                r'\.php\?',  # PHP with query parameters
+                r'redirect',  # Redirect URLs
+                r'click\.php',  # Click trackers
+                r'track\.php',  # Tracking scripts
+                r'goto\.',  # Goto redirects
+                r'ad\.php',  # Ad scripts
+                r'/ads/',  # Ad directories
+                r'banner\.php',  # Banner scripts
+            ]
+            
+            if any(re.search(pattern, url) for pattern in suspicious_patterns):
+                return False
+            
+            # Check for common file extensions that aren't websites
+            invalid_extensions = ['.jpg', '.jpeg', '.png', '.gif', '.pdf', '.doc', '.docx']
+            if any(url.endswith(ext) for ext in invalid_extensions):
+                return False
+            
+            return True
+            
+        except:
+            return False
+
+    def extract_email_from_text(self, text):
+        """Extract email from text content."""
+        if not text:
+            return None
+            
+        found_emails = set()
+        
+        # Clean text
+        text = text.lower()
+        text = text.replace(' at ', '@').replace('[at]', '@').replace('(at)', '@')
+        text = text.replace(' dot ', '.').replace('[dot]', '.').replace('(dot)', '.')
+        text = text.replace('AT', '@').replace('DOT', '.')
+        text = text.replace(' @ ', '@').replace(' . ', '.')
+        
+        # Common email domains
+        domains = [
+            'gmail.com', 'yahoo.com', 'hotmail.com', 'outlook.com',
+            'live.com', 'icloud.com', 'me.com', 'yahoo.ie', 'hotmail.ie',
+            'eircom.net', 'gmail.ie', 'googlemail.com', 'apple.com'
+        ]
+        
+        # Pattern 1: Look for standard email format with common domains
+        for domain in domains:
+            pattern = rf'[\w\.-]+@{re.escape(domain)}'
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            for email in matches:
+                if self.is_valid_email(email):
+                    found_emails.add(email.lower())
+
+        # Pattern 2: Look for any valid email format
+        pattern = r'[\w\.-]+@[\w\.-]+\.\w+'
+        matches = re.findall(pattern, text)
+        for email in matches:
+            if self.is_valid_email(email):
+                found_emails.add(email.lower())
+
+        # Pattern 3: Look for obfuscated emails
+        obfuscated_patterns = [
+            r'[\w\.-]+\s*(?:@|\[at\]|\(at\)|AT)\s*[\w\.-]+\s*(?:\.|\[dot\]|\(dot\)|DOT)\s*\w+',
+            r'[\w\.-]+\s*@\s*[\w\.-]+\s*\.\s*\w+',
+            r'[\w\.-]+\s*\[at\]\s*[\w\.-]+\s*\[dot\]\s*\w+'
+        ]
+        
+        for pattern in obfuscated_patterns:
+            matches = re.findall(pattern, text, re.IGNORECASE)
+            for match in matches:
+                cleaned = match.replace('[at]', '@').replace('(at)', '@').replace('AT', '@')
+                cleaned = cleaned.replace('[dot]', '.').replace('(dot)', '.').replace('DOT', '.')
+                cleaned = cleaned.replace(' ', '')
+                if self.is_valid_email(cleaned):
+                    found_emails.add(cleaned.lower())
+
+        return list(found_emails) if found_emails else None
+
+    def scrape_business_data(self, what, where):
+        """Scrape business data from Golden Pages with improved pagination and county filtering."""
+        businesses = []
+        seen_urls = set()  # To avoid duplicate business URLs
+        seen_websites = set()  # To track seen website URLs
+        try:
+            print(f"Starting search for {what} in {where}")
+            
+            # Validate inputs
+            if not what or not where:
+                raise ValueError("Both 'what' and 'where' parameters are required")
+            
+            # Reset progress tracking
+            self.total_processed = 0
+            self.successful_scrapes = 0
+            self.failed_scrapes = 0
+            self.start_time = time.time()
+            
+            # Construct the search URL
+            search_url = f"{self.base_url}/q/business/advanced/where/{urllib.parse.quote(where.replace(' ', '+'))}/what/{urllib.parse.quote(what.replace(' ', '+'))}/1"
+            print(f"Search URL: {search_url}")
+            
+            # Get the search results page with retry
+            response = self.make_request_with_retry(search_url)
+            if not response:
+                raise ConnectionError(f"Failed to access search page for URL: {search_url}")
+
+            # Parse the initial page to get total results
+            soup = BeautifulSoup(response.content, 'lxml')
+            
+            # Find the total results count
+            results_info = soup.find('div', {'class': 'results_info'})
+            if results_info:
+                results_text = results_info.get_text(strip=True)
+                total_results = re.search(r'of\s+(\d+)\s+results?', results_text)
+                if total_results:
+                    total_count = int(total_results.group(1))
+                    print(f"Found {total_count} total results")
+                else:
+                    total_count = 0
+            else:
+                listings = soup.find_all('div', {'class': 'listing_container'})
+                total_count = len(listings)
+                print(f"No results counter found, but found {total_count} listings on first page")
+
+            if total_count == 0:
+                return None, f"No businesses found for {what} in {where}"
+
+            page_num = 1
+            while True:
+                print(f"Scraping page {page_num}")
+                
+                listings = soup.find_all('div', {'class': 'listing_container'})
+                
+                if not listings:
+                    print("No listings found on this page")
+                    break
+
+                for listing in listings:
+                    try:
+                        business_data = {}
+                        
+                        # Get business name and URL
+                        title_elem = listing.find('h3', {'class': 'listing_title'})
+                        if not title_elem:
+                            continue
+
+                        name = title_elem.get_text(strip=True)
+                        # Remove leading numbers and "Sponsored" text
+                        name = ' '.join(word for word in name.split() if not word.isdigit() and word != "Sponsored")
+                        business_data['name'] = name
+                        
+                        # Get business URL
+                        business_url = None
+                        title_link = title_elem.find('a')
+                        if title_link:
+                            business_url = self.base_url + title_link['href'] if title_link['href'].startswith('/') else title_link['href']
+                            
+                            # Skip if we've already seen this exact business URL
+                            if business_url in seen_urls:
+                                continue
+                            seen_urls.add(business_url)
+
+                        # Get location and extract county
+                        location = listing.find('div', {'class': 'listing_address'})
+                        location_text = location.get_text(strip=True) if location else ''
+                        business_data['location'] = location_text
+                        county = self.extract_county(location_text)
+                        
+                        # Only process businesses in the specified county
+                        if county and county.lower() != where.lower():
+                            continue
+
+                        business_data['county'] = county
+
+                        # Get categories
+                        categories = listing.find('div', {'class': 'listing_categories'})
+                        business_data['categories'] = categories.get_text(strip=True) if categories else ''
+
+                        # Get additional details if business URL exists
+                        if business_url:
+                            additional_details = self.extract_business_details(business_url, county)
+                            if additional_details:
+                                # First, try to extract website from info@ email
+                                if 'email' in additional_details:
+                                    email = additional_details['email'].lower()
+                                    if email.startswith('info@'):
+                                        domain = email.split('@')[1]
+                                        website = f"https://www.{domain}"
+                                        if self.is_valid_website(website):
+                                            # Only add the website if we haven't seen it before
+                                            if website.lower() not in seen_websites:
+                                                additional_details['website'] = website
+                                                seen_websites.add(website.lower())
+                                                print(f"Extracted website from email: {website}")
+
+                                # Then check the scraped website
+                                if 'website' in additional_details:
+                                    website = additional_details['website'].lower()
+                                    if website in seen_websites:
+                                        # If we've seen this website before, remove it from the details
+                                        print(f"Duplicate website found: {website} - leaving website field blank")
+                                        additional_details.pop('website')
+                                    else:
+                                        seen_websites.add(website)
+
+                                # Update business data with all other details
+                                for key, value in additional_details.items():
+                                    if value:  # Only add non-empty values
+                                        business_data[key] = value
+
+                        # Validate and add the business data
+                        if self.validate_business_data(business_data):
+                            businesses.append(business_data)
+                            self.update_progress(success=True)
+                            print(f"Added business: {name} ({county}) - Progress: {len(businesses)}/{total_count}")
+                            if business_data.get('website'):
+                                print(f"Found website: {business_data['website']}")
+                            if business_data.get('email'):
+                                print(f"Found email: {business_data['email']}")
+                        else:
+                            self.update_progress(success=False)
+                            print(f"Skipped invalid business data: {name}")
+
+                    except Exception as e:
+                        print(f"Error processing listing: {e}")
+                        self.update_progress(success=False)
+                        continue
+
+                # Look for next page
+                next_button = soup.find('button', {
+                    'class': 'btn_normal btn_pagination clickable',
+                    'id': 'btn_pagination_next'
+                })
+                
+                if not next_button:
+                    print("No next page button found")
+                    break
+
+                next_url = next_button.get('data-url')
+                if not next_url:
+                    print("No next page URL found")
+                    break
+
+                if not next_url.startswith('http'):
+                    next_url = self.base_url + next_url
+
+                print(f"Moving to next page: {next_url}")
+                
+                response = self.make_request_with_retry(next_url)
+                if not response:
+                    print("Failed to get next page")
+                    break
+
+                soup = BeautifulSoup(response.content, 'lxml')
+                page_num += 1
+
+            if not businesses:
+                return None, "No businesses found"
+
+            # Save to CSV with timestamp and total count
+            timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
+            filename = f"business_data_{what.lower().replace(' ', '_')}_{where.lower().replace(' ', '_')}_{len(businesses)}results_{timestamp}.csv"
+            
+            # Define column order
+            columns = ['name', 'phone', 'email', 'website', 'location', 'county', 'categories']
+            
+            # Create DataFrame with specified column order
+            df = pd.DataFrame(businesses)
+            
+            # Reorder columns, only including those that exist
+            existing_columns = [col for col in columns if col in df.columns]
+            df = df[existing_columns]
+            
+            # Save to CSV in Downloads folder
+            full_path = os.path.join(self.downloads_dir, filename)
+            df.to_csv(full_path, index=False, encoding='utf-8-sig')
+            
+            return os.path.basename(filename), (
+                f"Successfully scraped {len(businesses)} out of {total_count} total businesses in {where}. "
+                f"Success rate: {(self.successful_scrapes / self.total_processed * 100):.1f}% "
+                f"({self.successful_scrapes}/{self.total_processed})"
+            )
+
+        except Exception as e:
+            print(f"Error during scraping: {e}")
+            return None, f"Error scraping data: {str(e)}"
+
+    def extract_county(self, location_text):
+        """Extract county from location text."""
+        if not location_text:
+            return None
+            
+        # List of Irish counties
+        counties = [
+            'Carlow', 'Cavan', 'Clare', 'Cork', 'Donegal', 'Dublin',
+            'Galway', 'Kerry', 'Kildare', 'Kilkenny', 'Laois', 'Leitrim',
+            'Limerick', 'Longford', 'Louth', 'Mayo', 'Meath', 'Monaghan',
+            'Offaly', 'Roscommon', 'Sligo', 'Tipperary', 'Waterford',
+            'Westmeath', 'Wexford', 'Wicklow'
+        ]
+        
+        # Clean and split the location text
+        location_parts = location_text.replace(',', '').split()
+        
+        # Look for county in location parts
+        for county in counties:
+            if county.lower() in [part.lower() for part in location_parts]:
+                return county
+                
+        return None
+
+    def scrape_entire_sitemap(self, output_file='full_golden_pages_businesses.csv', max_businesses=10):
+        """
+        Simplified sitemap scraping for debugging.
+        
+        Args:
+            output_file (str): Filename to save the complete business data
+            max_businesses (int, optional): Limit the number of businesses to scrape
+        
+        Returns:
+            tuple: (filename, total_businesses_scraped, errors)
+        """
+        print("Starting sitemap scraping...")
+        sitemap_url = f"{self.base_url}/business/sitemap"
+        
+        # Ensure downloads directory exists
+        os.makedirs('downloads', exist_ok=True)
+        logging_file = os.path.join('downloads', 'sitemap_debug_log.txt')
+        
+        # Track scraping progress
+        total_businesses = 0
+        successful_businesses = 0
+        errors = []
+        all_businesses = []
+        
+        try:
+            # Open logging file
+            with open(logging_file, 'w', encoding='utf-8') as log_file:
+                def log(message):
+                    print(message)
+                    log_file.write(message + '\n')
+                    log_file.flush()
+                
+                log(f"Fetching sitemap from: {sitemap_url}")
+                
+                # Fetch sitemap page
+                response = self.make_request_with_retry(sitemap_url)
+                if not response:
+                    log("Failed to fetch sitemap!")
+                    return None, None, "Could not access sitemap"
+                
+                # Parse sitemap
+                soup = BeautifulSoup(response.content, 'lxml')
+                
+                # Find business links
+                business_links = soup.find_all('a', href=lambda href: href and '/business/' in href)
+                log(f"Found {len(business_links)} potential business pages")
+                
+                # Limit businesses for testing
+                business_links = business_links[:max_businesses]
+                
+                for link in business_links:
+                    try:
+                        business_url = link['href']
+                        if not business_url.startswith('http'):
+                            business_url = f"{self.base_url}{business_url}"
+                        
+                        log(f"Processing business URL: {business_url}")
+                        
+                        # Extract business details
+                        business_details = self.extract_business_details(business_url, None)
+                        
+                        if business_details:
+                            business_details['source_url'] = business_url
+                            all_businesses.append(business_details)
+                            successful_businesses += 1
+                            log(f"Successfully scraped: {business_details.get('name', 'Unknown Business')}")
+                        
+                        total_businesses += 1
+                        
+                        # Small delay to be respectful
+                        time.sleep(0.5)
+                    
+                    except Exception as e:
+                        log(f"Error processing business: {e}")
+                        errors.append({'url': business_url, 'error': str(e)})
+                
+                # Save to CSV
+                if all_businesses:
+                    df = pd.DataFrame(all_businesses)
+                    full_path = os.path.join('downloads', output_file)
+                    df.to_csv(full_path, index=False, encoding='utf-8-sig')
+                    log(f"Saved {len(all_businesses)} businesses to {full_path}")
+                
+                return (
+                    output_file, 
+                    {
+                        'total_processed': total_businesses,
+                        'successful': successful_businesses,
+                        'errors': len(errors)
+                    },
+                    errors
+                )
+        
+        except Exception as e:
+            print(f"Sitemap scraping failed: {e}")
+            return None, None, str(e)
 
 # Initialize the scraper
-scraper_google = None
+scraper = None
 
 @app.route('/')
 def index():
-    """Render the LinkedIn search page."""
-    return render_template('index.html')
-
-@app.route('/golden-pages')
-def golden_pages():
-    """Render the Golden Pages search page."""
+    """Redirect to Golden Pages search."""
     return render_template('golden_pages.html')
 
-@app.route('/scrape', methods=['POST'])
-def scrape():
-    """Handle the scraping request."""
+@app.route('/search_businesses', methods=['POST'])
+def search_businesses():
     try:
-        # Get the generated search query
-        search_query = request.form.get('query')
-        if not search_query:
-            return jsonify({'error': 'No search query provided'}), 400
+        what = request.form.get('what', '').strip()
+        where = request.form.get('where', '').strip()
         
-        # Initialize a new scraper instance for this request
-        global scraper_google
-        scraper_google = GoogleSearchScraper()
+        if not where:
+            return jsonify({'error': 'Please provide a location'}), 400
+
+        global scraper
+        if scraper is None:
+            scraper = GoldenPagesScraper()
+
+        # Add detailed logging
+        print(f"Search parameters - What: {what}, Where: {where}")
+
+        try:
+            filename, message = scraper.scrape_business_data(what, where)
+        except Exception as detailed_e:
+            import traceback
+            print("Detailed Scraping Error:")
+            print(traceback.format_exc())
+            return jsonify({
+                'success': False,
+                'message': f"Detailed scraping error: {str(detailed_e)}"
+            }), 500
         
-        # Scrape the results
-        results = scraper_google.scrape_google_results(search_query)
-        
-        if not results:
-            return jsonify({'error': 'No profiles found'}), 404
-        
-        # Create output directory if it doesn't exist
-        os.makedirs('downloads', exist_ok=True)
-        
-        # Generate timestamp for unique filename
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f"downloads/linkedin_profiles_{timestamp}.csv"
-        
-        # Save to CSV
-        df = pd.DataFrame(results)
-        df.to_csv(filename, index=False, encoding='utf-8-sig')
-        
-        return jsonify({
-            'success': True,
-            'message': f'Successfully scraped {len(results)} profiles',
-            'filename': os.path.basename(filename),
-            'profiles': results
-        })
-        
+        if filename:
+            return jsonify({
+                'success': True,
+                'message': message,
+                'filename': filename
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': message
+            }), 500
+
     except Exception as e:
-        print(f"Error in scrape route: {e}")
-        return jsonify({'error': str(e)}), 500
+        import traceback
+        print("Global Search Businesses Error:")
+        print(traceback.format_exc())
+        return jsonify({
+            'success': False,
+            'message': f"An error occurred: {str(e)}"
+        }), 500
 
 @app.route('/download/<filename>')
 def download(filename):
@@ -509,56 +883,125 @@ def download(filename):
     except Exception as e:
         return jsonify({'error': str(e)}), 404
 
-@app.route('/email_searcher')
-def email_searcher():
-    """Render the email searcher page."""
-    return render_template('email_searcher.html')
-
-@app.route('/search_businesses', methods=['POST'])
-def search_businesses():
-    """Handle the business search request."""
-    what = request.form.get('what', '').strip()
-    where = request.form.get('where', '').strip()
-    
-    if not where:  # 'where' is required, 'what' can be empty
-        return jsonify({
-            'error': 'Please provide a location to search in'
-        }), 400
-    
+@app.route('/scrape_sitemap', methods=['POST'])
+def scrape_sitemap():
+    print("Sitemap scraping route triggered!")
     try:
-        print(f"Starting search for businesses: {what} in {where}")
-        scraper = GoldenPagesScraper()
-        businesses = scraper.scrape_business_data(where=where, what=what)
+        global scraper
+        if scraper is None:
+            print("Initializing new scraper...")
+            scraper = GoldenPagesScraper()
         
-        if not businesses:
+        print("Calling scrape_entire_sitemap method...")
+        filename, stats, errors = scraper.scrape_entire_sitemap()
+        
+        print(f"Scraping result - Filename: {filename}")
+        print(f"Scraping result - Stats: {stats}")
+        print(f"Scraping result - Errors: {errors}")
+        
+        if filename:
             return jsonify({
-                'error': f'No businesses found for "{what}" in {where}'
-            }), 404
-        
-        # Create downloads directory if it doesn't exist
-        os.makedirs('downloads', exist_ok=True)
-        
-        # Generate filename with timestamp
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        search_terms = f"{what}_{where}".lower().replace(' ', '_') if what else f"{where}".lower().replace(' ', '_')
-        filename = f"business_data_{search_terms}_{timestamp}.csv"
-        filepath = os.path.join('downloads', filename)
-        
-        # Save to CSV with UTF-8-BOM encoding for Excel compatibility
-        df = pd.DataFrame(businesses)
-        df.to_csv(filepath, index=False, encoding='utf-8-sig')
-        
-        return jsonify({
-            'message': f'Successfully scraped {len(businesses)} businesses',
-            'filename': filename,
-            'total_results': len(businesses)
-        })
-        
+                'success': True,
+                'filename': filename,
+                'stats': stats,
+                'errors': errors
+            })
+        else:
+            return jsonify({
+                'success': False,
+                'message': 'Sitemap scraping failed'
+            }), 500
+    
     except Exception as e:
-        print(f"Error in search_businesses: {str(e)}")
+        print(f"Sitemap scraping route error: {e}")
+        import traceback
+        traceback.print_exc()
         return jsonify({
-            'error': f'An error occurred while searching: {str(e)}'
+            'success': False,
+            'message': str(e)
         }), 500
 
+def setup_driver():
+    chrome_options = Options()
+    chrome_options.add_argument('--headless')
+    chrome_options.add_argument('--no-sandbox')
+    chrome_options.add_argument('--disable-dev-shm-usage')
+    chrome_options.add_argument('--window-size=1920,1080')  # Set a good size for screenshots
+    return webdriver.Chrome(options=chrome_options)
+
+def scrape_business(driver, url, analyzer):
+    try:
+        driver.get(url)
+        time.sleep(2)  # Wait for page to load
+        
+        # Take screenshot of the business page
+        screenshot_path = f"screenshots/{int(time.time())}.png"
+        os.makedirs("screenshots", exist_ok=True)
+        driver.save_screenshot(screenshot_path)
+        
+        # Get business name for the analyzer
+        business_name = driver.find_element(By.CSS_SELECTOR, 'h1').text
+        
+        # Use Gemini to analyze the screenshot and extract data
+        business_data = analyzer.analyze_business_screenshot(screenshot_path, business_name)
+        
+        # Clean up screenshot after analysis
+        os.remove(screenshot_path)
+        
+        return business_data
+        
+    except Exception as e:
+        print(f"Error scraping business: {e}")
+        return None
+
+def scrape_search_results(search_term, location):
+    analyzer = GeminiAnalyzer()
+    driver = setup_driver()
+    
+    try:
+        # Format the search URL
+        search_url = f"https://www.goldenpages.ie/q/{search_term}/{location}/"
+        driver.get(search_url)
+        time.sleep(2)
+        
+        # Get all business links
+        business_links = driver.find_elements(By.CSS_SELECTOR, '.listing h2 a')
+        business_urls = [link.get_attribute('href') for link in business_links]
+        
+        print(f"Found {len(business_urls)} businesses to process")
+        
+        # Process each business
+        for url in business_urls:
+            print(f"Processing business at {url}")
+            business_data = scrape_business(driver, url, analyzer)
+            if business_data:
+                print(f"Successfully processed business: {business_data.get('name', 'Unknown')}")
+        
+        # Save all processed businesses to CSV
+        analyzer.save_to_csv(f"results_{search_term}_{location}.csv")
+        
+    except Exception as e:
+        print(f"Error during scraping: {e}")
+    
+    finally:
+        driver.quit()
+
 if __name__ == '__main__':
-    app.run(debug=True) 
+    parser = argparse.ArgumentParser(description='Yellow Pages Crawler')
+    parser.add_argument('--port', type=int, default=5003, help='Port to run the Flask app on')
+    parser.add_argument('--search', help='Business type to search for')
+    parser.add_argument('--location', help='Location to search in')
+    args = parser.parse_args()
+    
+    if args.search and args.location:
+        # Run in command-line mode
+        scraper = GoldenPagesScraper()
+        filename, message = scraper.scrape_business_data(args.search, args.location)
+        if filename:
+            print(f"Success! Data saved to: {filename}")
+            print(message)
+        else:
+            print(f"Error: {message}")
+    else:
+        # Run in web mode
+        app.run(debug=True, port=args.port) 

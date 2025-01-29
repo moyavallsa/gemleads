@@ -20,21 +20,31 @@ wheels/
 .installed.cfg
 *.egg
 
-# Virtual Environment
+# Environment
+.env
+.venv
+env/
 venv/
 ENV/
-env/
-.env
+
+# Configuration
+config.py
+
+# Downloaded data
+downloads/
+*.csv
 
 # IDE
-.idea/
 .vscode/
+.idea/
 *.swp
 *.swo
 
+# OS
+.DS_Store
+Thumbs.db
+
 # Project specific
-downloads/
-*.csv
 chromedriver
 chromedriver.exe
 

@@ -39,16 +39,36 @@ class GitAutoCommit(FileSystemEventHandler):
         if current_time - self.last_commit_time >= self.commit_cooldown:
             self.commit_changes()
 
+    def has_changes(self):
+        """Check if there are actual changes to commit."""
+        try:
+            result = subprocess.run(['git', 'status', '--porcelain'], 
+                                 capture_output=True, 
+                                 text=True, 
+                                 check=True)
+            return bool(result.stdout.strip())
+        except subprocess.CalledProcessError:
+            return False
+
     def commit_changes(self):
         if not self.modified_files:
             return
 
         try:
-            # Convert set to list for the commit message
+            # Only proceed if there are actual changes
+            if not self.has_changes():
+                self.modified_files.clear()
+                return
+
             files_to_commit = list(self.modified_files)
             
             # Git add
             subprocess.run(['git', 'add'] + files_to_commit, check=True)
+            
+            # Double check if there are changes after git add
+            if not self.has_changes():
+                self.modified_files.clear()
+                return
             
             # Create commit message
             commit_message = f"Auto-commit: Updated {', '.join(files_to_commit)}"
@@ -59,13 +79,12 @@ class GitAutoCommit(FileSystemEventHandler):
             
             print(f"Successfully committed and pushed changes for: {', '.join(files_to_commit)}")
             
-            # Clear the set of modified files
             self.modified_files.clear()
-            # Update last commit time
             self.last_commit_time = time.time()
             
         except subprocess.CalledProcessError as e:
-            print(f"Error during git operations: {e}")
+            if "nothing to commit" not in str(e.stderr):
+                print(f"Error during git operations: {e}")
         except Exception as e:
             print(f"An error occurred: {e}")
 
