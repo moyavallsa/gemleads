@@ -1,0 +1,17 @@
+{
+  "name": "gem-leads",
+  "version": "1.0.0",
+  "description": "Business data scraping solution",
+  "main": "index.js",
+  "scripts": {
+    "build": "pip install -r requirements.txt",
+    "start": "gunicorn app:app"
+  },
+  "engines": {
+    "node": "16.x",
+    "python": "3.8.18"
+  },
+  "dependencies": {
+    "express": "^4.17.1"
+  }
+} 
