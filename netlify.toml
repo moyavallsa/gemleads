@@ -1,10 +1,15 @@
 [build]
-  command = "mkdir -p public && cp -r static templates public/"
+  command = "npm install && pip install -r requirements.txt"
   publish = "public"
   functions = "netlify/functions"
 
-[functions]
-  directory = "netlify/functions"
+[build.environment]
+  PYTHON_VERSION = "3.8"
+  PYTHON_RUNTIME = "python3.8"
+  PIP_USER = "0"
+
+[[plugins]]
+  package = "@netlify/plugin-python"
 
 [[redirects]]
   from = "/api/*"
@@ -14,10 +19,4 @@
 [[redirects]]
   from = "/*"
   to = "/index.html"
-  status = 200
-
-[build.environment]
-  PYTHON_VERSION = "3.8"
-
-[[plugins]]
-  package = "@netlify/plugin-python" 
+  status = 200 
