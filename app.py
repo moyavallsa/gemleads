@@ -221,14 +221,10 @@ class GoldenPagesScraper:
                 details['name'] = business_name.text.strip()
                 print(f"Found business name: {details['name']}")
 
-            # 1. Extract phone numbers (Primary focus)
-            # Look for phone numbers in multiple formats
+            # Extract phone numbers
             phone_patterns = [
-                # Look for tel: links
                 ('a', {'href': lambda x: x and 'tel:' in x}),
-                # Look for elements with phone-related classes
                 (['span', 'div', 'p'], {'class': lambda x: x and any(term in str(x).lower() for term in ['phone', 'tel', 'mobile', 'contact'])}),
-                # Look for elements with phone-related text
                 (['span', 'div', 'p'], {'text': lambda x: x and any(term in str(x).lower() for term in ['phone:', 'tel:', 'mobile:', 'call:'])})
             ]
             
@@ -240,27 +236,21 @@ class GoldenPagesScraper:
                         phone = elem['href'].replace('tel:', '').strip()
                         found_phones.add(phone)
                     else:
-                        # Extract numbers from text content
                         text = elem.get_text(strip=True)
-                        # Look for numbers in format (XXX) XXXXXXX or similar
                         phone_matches = re.findall(r'[\(]?\d{2,3}[\)]?\s*\d{3,4}[\s-]?\d{4}', text)
                         found_phones.update(phone_matches)
             
             if found_phones:
                 phones = list(found_phones)
-                details['phone'] = phones[0]  # Primary phone
+                details['phone'] = phones[0]
                 if len(phones) > 1:
                     details['additional_phones'] = phones[1:]
                 print(f"Found phone number(s): {phones}")
 
-            # 2. Extract email addresses (Second priority)
-            # Look for emails in multiple formats
+            # Extract email addresses with proper domain handling
             email_patterns = [
-                # Look for mailto: links
                 ('a', {'href': lambda x: x and 'mailto:' in x}),
-                # Look for elements with email-related classes
                 (['span', 'div', 'p'], {'class': lambda x: x and any(term in str(x).lower() for term in ['email', 'mail', 'contact'])}),
-                # Look for elements with email-related text
                 (['span', 'div', 'p'], {'text': lambda x: x and 'email' in str(x).lower()})
             ]
             
@@ -270,21 +260,33 @@ class GoldenPagesScraper:
                 for elem in elements:
                     if 'href' in elem.attrs and 'mailto:' in elem['href']:
                         email = elem['href'].replace('mailto:', '').strip()
-                        found_emails.add(email)
+                        # Extract email up to first .com or .ie
+                        if '.com' in email:
+                            email = email.split('.com')[0] + '.com'
+                        elif '.ie' in email:
+                            email = email.split('.ie')[0] + '.ie'
+                        if email:
+                            found_emails.add(email.lower())
                     else:
-                        # Extract email from text content
                         text = elem.get_text(strip=True)
-                        email_matches = re.findall(r'[\w\.-]+@[\w\.-]+\.\w+', text)
-                        found_emails.update(email_matches)
+                        # Extract emails and clean them
+                        email_matches = re.findall(r'[\w\.-]+@[\w\.-]+\.[a-zA-Z]{2,}', text)
+                        for email in email_matches:
+                            if '.com' in email:
+                                email = email.split('.com')[0] + '.com'
+                            elif '.ie' in email:
+                                email = email.split('.ie')[0] + '.ie'
+                            if email:
+                                found_emails.add(email.lower())
             
             if found_emails:
                 emails = list(found_emails)
-                details['email'] = emails[0]  # Primary email
+                details['email'] = emails[0]
                 if len(emails) > 1:
                     details['additional_emails'] = emails[1:]
                 print(f"Found email(s): {emails}")
 
-            # 3. Extract website (Third priority)
+            # Extract website
             website_elements = soup.find_all('a', href=True)
             for elem in website_elements:
                 href = elem['href'].lower()
@@ -300,7 +302,7 @@ class GoldenPagesScraper:
                     print(f"Found website: {href}")
                     break
 
-            # 4. Extract location and categories
+            # Extract location and categories
             location_elem = soup.find(['div', 'span', 'p'], {'class': lambda x: x and 'address' in str(x).lower()})
             if location_elem:
                 details['location'] = location_elem.get_text(strip=True)
@@ -684,7 +686,7 @@ class GoldenPagesScraper:
             df.to_csv(full_path, index=False, encoding='utf-8-sig')
             
             return os.path.basename(filename), (
-                f"Successfully scraped {len(businesses)} out of {total_count} total businesses in {where}. "
+                f"Successfully scraped {len(businesses)} businesses in {where}. "
                 f"Success rate: {(self.successful_scrapes / self.total_processed * 100):.1f}% "
                 f"({self.successful_scrapes}/{self.total_processed})"
             )
@@ -819,63 +821,85 @@ scraper = None
 
 @app.route('/')
 def index():
-    """Redirect to Golden Pages search."""
-    return render_template('golden_pages.html')
+    return render_template('index.html')
 
 @app.route('/search_businesses', methods=['POST'])
 def search_businesses():
-    try:
-        what = request.form.get('what', '').strip()
-        where = request.form.get('where', '').strip()
+    data = request.get_json()
+    if not data or 'what' not in data or 'where' not in data:
+        return jsonify({'error': 'Please provide both business type and location'}), 400
         
-        if not where:
-            return jsonify({'error': 'Please provide a location'}), 400
-
-        global scraper
-        if scraper is None:
-            scraper = GoldenPagesScraper()
-
-        # Add detailed logging
-        print(f"Search parameters - What: {what}, Where: {where}")
-
-        try:
-            filename, message = scraper.scrape_business_data(what, where)
-        except Exception as detailed_e:
-            import traceback
-            print("Detailed Scraping Error:")
-            print(traceback.format_exc())
-            return jsonify({
-                'success': False,
-                'message': f"Detailed scraping error: {str(detailed_e)}"
-            }), 500
+    what = data['what']
+    where = data['where']
+    
+    scraper = GoldenPagesScraper()
+    filename, message = scraper.scrape_business_data(what, where)
+    
+    if filename:
+        # Clean any email addresses during scraping
+        downloads_dir = str(Path.home() / "Downloads")
+        file_path = os.path.join(downloads_dir, filename)
         
-        if filename:
-            return jsonify({
-                'success': True,
-                'message': message,
-                'filename': filename
-            })
-        else:
-            return jsonify({
-                'success': False,
-                'message': message
-            }), 500
-
-    except Exception as e:
-        import traceback
-        print("Global Search Businesses Error:")
-        print(traceback.format_exc())
+        if os.path.exists(file_path):
+            # Read the CSV
+            df = pd.read_csv(file_path)
+            
+            # Clean emails if they exist
+            if 'email' in df.columns:
+                df['email'] = df['email'].apply(lambda x: clean_email(x) if pd.notnull(x) else x)
+            
+            # Save back to CSV
+            df.to_csv(file_path, index=False)
+        
+        return jsonify({
+            'success': True,
+            'message': message,
+            'filename': filename
+        })
+    else:
         return jsonify({
             'success': False,
-            'message': f"An error occurred: {str(e)}"
-        }), 500
+            'message': message
+        }), 400
+
+def clean_email(email: str) -> str:
+    """Clean email by removing numbers before 'info' and fixing domain duplications."""
+    try:
+        if not email or '@' not in email:
+            return email
+            
+        local, domain = email.split('@', 1)
+        
+        # Remove numbers before 'info'
+        if 'info' in local:
+            local = re.sub(r'^\d+info', 'info', local)
+        
+        # Handle common domain duplications
+        if '.ie' in domain:
+            base_domain = domain.split('.ie')[0]
+            domain = f"{base_domain}.ie"
+        elif '.com' in domain:
+            base_domain = domain.split('.com')[0]
+            domain = f"{base_domain}.com"
+            
+        return f"{local}@{domain}"
+        
+    except Exception as e:
+        print(f"Error cleaning email: {e}")
+        return email
 
 @app.route('/download/<filename>')
 def download(filename):
     """Download the CSV file."""
     try:
+        downloads_dir = str(Path.home() / "Downloads")
+        file_path = os.path.join(downloads_dir, filename)
+        
+        if not os.path.exists(file_path):
+            return jsonify({'error': f'File not found in Downloads folder: {filename}'}), 404
+            
         return send_file(
-            f"downloads/{filename}",
+            file_path,
             mimetype='text/csv',
             as_attachment=True,
             download_name=filename
@@ -920,6 +944,32 @@ def scrape_sitemap():
             'success': False,
             'message': str(e)
         }), 500
+
+@app.route('/scrape')
+def scrape():
+    what = request.args.get('what')
+    where = request.args.get('where')
+    
+    if not what or not where:
+        return jsonify({'error': 'Please provide both business type and location'}), 400
+    
+    global scraper
+    if scraper is None:
+        scraper = GoldenPagesScraper()
+    
+    filename, message = scraper.scrape_business_data(what, where)
+    
+    if filename:
+        return jsonify({
+            'success': True,
+            'message': message,
+            'filename': filename
+        })
+    else:
+        return jsonify({
+            'success': False,
+            'message': message
+        }), 400
 
 def setup_driver():
     chrome_options = Options()
@@ -987,21 +1037,4 @@ def scrape_search_results(search_term, location):
         driver.quit()
 
 if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Yellow Pages Crawler')
-    parser.add_argument('--port', type=int, default=5003, help='Port to run the Flask app on')
-    parser.add_argument('--search', help='Business type to search for')
-    parser.add_argument('--location', help='Location to search in')
-    args = parser.parse_args()
-    
-    if args.search and args.location:
-        # Run in command-line mode
-        scraper = GoldenPagesScraper()
-        filename, message = scraper.scrape_business_data(args.search, args.location)
-        if filename:
-            print(f"Success! Data saved to: {filename}")
-            print(message)
-        else:
-            print(f"Error: {message}")
-    else:
-        # Run in web mode
-        app.run(debug=True, port=args.port) 
+    app.run(debug=True, port=5007) 

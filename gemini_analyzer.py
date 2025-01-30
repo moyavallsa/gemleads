@@ -5,6 +5,7 @@ import base64
 from config import GEMINI_API_KEY, GEMINI_MODEL, TEMPERATURE
 from PIL import Image
 import io
+import re
 
 class GeminiAnalyzer:
     def __init__(self):
@@ -112,7 +113,15 @@ class GeminiAnalyzer:
     def _parse_gemini_response(self, response_text: str) -> Dict:
         """Parse Gemini's JSON response into a dictionary."""
         try:
-            # Find the JSON block in the response
+            # Clean up the response text
+            response_text = response_text.strip()
+            
+            # Try to find a JSON array first (for email abbreviations)
+            if response_text.startswith('[') and response_text.endswith(']'):
+                import json
+                return json.loads(response_text)
+            
+            # Otherwise look for a JSON object
             start_idx = response_text.find('{')
             end_idx = response_text.rfind('}') + 1
             
@@ -120,9 +129,94 @@ class GeminiAnalyzer:
                 raise ValueError("No JSON found in response")
                 
             json_str = response_text[start_idx:end_idx]
-            data = eval(json_str)  # Using eval since the response is already in Python dict format
-            return data
+            
+            # Use json.loads instead of eval for safer parsing
+            import json
+            return json.loads(json_str)
             
         except Exception as e:
-            print(f"Error parsing Gemini response: {e}")
-            return {} 
+            print(f"Error parsing Gemini response: {str(e)}")
+            print(f"Response text: {response_text}")
+            return []  # Return empty list for email abbreviations, empty dict for other cases
+
+    def clean_domain(self, email: str) -> str:
+        """Clean email domain by removing duplicated domains and unwanted suffixes."""
+        try:
+            if not email or '@' not in email:
+                return email
+                
+            local, domain = email.split('@', 1)
+            
+            # Remove numbers before 'info'
+            if 'info' in local:
+                local = re.sub(r'^\d+info', 'info', local)
+            
+            # Handle common domain duplications
+            if '.ie' in domain:
+                # Split at first occurrence of .ie and add it back
+                base_domain = domain.split('.ie')[0]
+                domain = f"{base_domain}.ie"
+            elif '.com' in domain:
+                # Split at first occurrence of .com and add it back
+                base_domain = domain.split('.com')[0]
+                domain = f"{base_domain}.com"
+                
+            return f"{local}@{domain}"
+            
+        except Exception as e:
+            print(f"Error cleaning domain: {e}")
+            return email
+
+    def abbreviate_emails(self, emails: List[str]) -> List[Dict[str, str]]:
+        """
+        Clean email addresses by removing domain duplications and numbers before 'info'.
+        
+        Args:
+            emails (List[str]): List of email addresses to process
+            
+        Returns:
+            List[Dict[str, str]]: List of dictionaries containing original and cleaned emails
+        """
+        try:
+            if not emails:
+                return []
+                
+            # First clean the domains
+            cleaned_emails = [self.clean_domain(email) for email in emails if email]
+            cleaned_emails = list(set(cleaned_emails))  # Remove duplicates
+            
+            results = []
+            for email in cleaned_emails:
+                if not email or '@' not in email:
+                    continue
+                    
+                # Clean the email
+                cleaned_email = self.clean_domain(email)
+                
+                # Check if the email had numbers before 'info' that were removed
+                had_numbers = 'info' in email.lower() and re.search(r'^\d+info', email.split('@')[0].lower())
+                
+                if cleaned_email != email:
+                    explanation = []
+                    if had_numbers:
+                        explanation.append("Removed numbers before 'info'")
+                    if cleaned_email.count('.') < email.count('.'):
+                        explanation.append("Removed duplicated domain suffix")
+                    
+                    results.append({
+                        "original": email,
+                        "abbreviated": cleaned_email,
+                        "explanation": " and ".join(explanation)
+                    })
+                else:
+                    results.append({
+                        "original": email,
+                        "abbreviated": email,
+                        "explanation": "No changes needed"
+                    })
+                
+            return results
+            
+        except Exception as e:
+            print(f"Error processing emails: {e}")
+            return [] 

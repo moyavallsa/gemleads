@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg width="800" height="600" viewBox="0 0 800 600" fill="none" xmlns="http://www.w3.org/2000/svg">
+    <!-- Background Grid -->
+    <pattern id="grid" x="0" y="0" width="40" height="40" patternUnits="userSpaceOnUse">
+        <rect width="40" height="40" fill="none" stroke="#E5E7EB" stroke-width="1"/>
+    </pattern>
+    <rect width="800" height="600" fill="url(#grid)" opacity="0.2"/>
+    
+    <!-- Diamond Icon -->
+    <g transform="translate(350, 250)">
+        <path d="M50,0 L100,50 L50,100 L0,50 Z" fill="#6366f1" opacity="0.9"/>
+        <path d="M50,10 L90,50 L50,90 L10,50 Z" fill="#4f46e5"/>
+    </g>
+    
+    <!-- Data Points -->
+    <g>
+        <circle cx="200" cy="200" r="5" fill="#818cf8"/>
+        <circle cx="600" cy="300" r="5" fill="#818cf8"/>
+        <circle cx="400" cy="450" r="5" fill="#818cf8"/>
+        <circle cx="300" cy="150" r="5" fill="#818cf8"/>
+        <circle cx="500" cy="250" r="5" fill="#818cf8"/>
+        
+        <!-- Connecting Lines -->
+        <line x1="200" y1="200" x2="300" y2="150" stroke="#818cf8" stroke-width="2" opacity="0.5"/>
+        <line x1="300" y1="150" x2="400" y2="450" stroke="#818cf8" stroke-width="2" opacity="0.5"/>
+        <line x1="400" y1="450" x2="500" y2="250" stroke="#818cf8" stroke-width="2" opacity="0.5"/>
+        <line x1="500" y1="250" x2="600" y2="300" stroke="#818cf8" stroke-width="2" opacity="0.5"/>
+    </g>
+    
+    <!-- Decorative Elements -->
+    <g>
+        <circle cx="150" cy="400" r="30" fill="#6366f1" opacity="0.1"/>
+        <circle cx="650" cy="200" r="40" fill="#4f46e5" opacity="0.1"/>
+        <circle cx="400" cy="100" r="25" fill="#818cf8" opacity="0.1"/>
+    </g>
+</svg> 
