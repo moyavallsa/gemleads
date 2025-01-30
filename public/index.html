@@ -1,0 +1,61 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gem Lead - Business Data Scraping Solution</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="/static/css/styles.css">
+</head>
+<body>
+    <div class="container">
+        <h1>Gem Lead</h1>
+        <form id="searchForm">
+            <input type="text" name="what" placeholder="Business Category" required>
+            <input type="text" name="where" placeholder="Location" required>
+            <button type="submit">Search</button>
+        </form>
+        <div id="results"></div>
+    </div>
+
+    <script>
+        document.getElementById('searchForm').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            const form = e.target;
+            const button = form.querySelector('button');
+            const results = document.getElementById('results');
+
+            button.disabled = true;
+            button.textContent = 'Searching...';
+            results.textContent = '';
+
+            try {
+                const response = await fetch('/.netlify/functions/search', {
+                    method: 'POST',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                        what: form.what.value,
+                        where: form.where.value
+                    })
+                });
+
+                const data = await response.json();
+                
+                if (data.success) {
+                    results.textContent = data.message;
+                    if (data.filename) {
+                        window.location.href = `/download/${data.filename}`;
+                    }
+                } else {
+                    results.textContent = data.error || 'An error occurred';
+                }
+            } catch (error) {
+                results.textContent = 'An error occurred while processing your request';
+            } finally {
+                button.disabled = false;
+                button.textContent = 'Search';
+            }
+        });
+    </script>
+</body>
+</html> 
