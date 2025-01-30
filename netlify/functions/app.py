@@ -1,8 +1,10 @@
-from flask import Flask, request, jsonify
+from flask import Flask, request, jsonify, Response
 from bs4 import BeautifulSoup
 import requests
 import pandas as pd
 from datetime import datetime
+import json
+import base64
 
 app = Flask(__name__)
 
@@ -26,102 +28,144 @@ def scrape_business_data(what, where):
             }
             businesses.append(business)
         
-        # Create DataFrame and save to CSV
+        # Create DataFrame
         df = pd.DataFrame(businesses)
-        timestamp = datetime.now().strftime('%Y%m%d_%H%M%S')
-        filename = f"business_data_{what}_{where}_{len(businesses)}results_{timestamp}.csv"
-        df.to_csv(filename, index=False)
         
-        return filename, f"Found {len(businesses)} businesses. Data saved to {filename}"
+        # Instead of saving to file, return the data directly
+        return {
+            'success': True,
+            'data': businesses,
+            'message': f"Found {len(businesses)} businesses"
+        }
         
     except Exception as e:
-        return None, f"Error: {str(e)}"
-
-@app.route('/search_businesses', methods=['POST'])
-def search_businesses():
-    data = request.get_json()
-    what = data.get('what')
-    where = data.get('where')
-    
-    if not what or not where:
-        return jsonify({'error': 'Please provide both business type and location'}), 400
-    
-    filename, message = scrape_business_data(what, where)
-    
-    if filename:
-        return jsonify({
-            'success': True,
-            'filename': filename,
-            'message': message
-        })
-    else:
-        return jsonify({
+        return {
             'success': False,
-            'error': message
-        }), 500
-
-@app.route('/')
-def index():
-    return '''
-    <!DOCTYPE html>
-    <html>
-    <head>
-        <title>Gem Leads - Business Search</title>
-        <style>
-            body { font-family: Arial, sans-serif; margin: 40px; }
-            .container { max-width: 600px; margin: 0 auto; }
-            input, button { margin: 10px 0; padding: 8px; width: 100%; }
-            button { background: #4CAF50; color: white; border: none; cursor: pointer; }
-            button:hover { background: #45a049; }
-        </style>
-    </head>
-    <body>
-        <div class="container">
-            <h1>Gem Leads</h1>
-            <form id="searchForm">
-                <input type="text" id="what" placeholder="Business Type (e.g., Plumber)" required>
-                <input type="text" id="where" placeholder="Location (e.g., Dublin)" required>
-                <button type="submit">Search</button>
-            </form>
-            <div id="results"></div>
-        </div>
-        <script>
-            document.getElementById('searchForm').addEventListener('submit', async (e) => {
-                e.preventDefault();
-                const results = document.getElementById('results');
-                results.textContent = 'Searching...';
-                
-                try {
-                    const response = await fetch('/search_businesses', {
-                        method: 'POST',
-                        headers: { 'Content-Type': 'application/json' },
-                        body: JSON.stringify({
-                            what: document.getElementById('what').value,
-                            where: document.getElementById('where').value
-                        })
-                    });
-                    
-                    const data = await response.json();
-                    if (data.success) {
-                        results.textContent = data.message;
-                        if (data.filename) {
-                            const link = document.createElement('a');
-                            link.href = '/download/' + data.filename;
-                            link.textContent = 'Download Results';
-                            results.appendChild(document.createElement('br'));
-                            results.appendChild(link);
-                        }
-                    } else {
-                        results.textContent = data.error || 'An error occurred';
-                    }
-                } catch (error) {
-                    results.textContent = 'An error occurred while processing your request';
-                }
-            });
-        </script>
-    </body>
-    </html>
-    '''
+            'error': str(e)
+        }
 
 def handler(event, context):
-    return app(event, context) 
+    """Netlify function handler"""
+    
+    # Handle OPTIONS request for CORS
+    if event['httpMethod'] == 'OPTIONS':
+        return {
+            'statusCode': 204,
+            'headers': {
+                'Access-Control-Allow-Origin': '*',
+                'Access-Control-Allow-Headers': 'Content-Type',
+                'Access-Control-Allow-Methods': 'GET, POST, OPTIONS'
+            }
+        }
+    
+    # Handle GET request - serve the HTML page
+    if event['httpMethod'] == 'GET':
+        return {
+            'statusCode': 200,
+            'headers': {
+                'Content-Type': 'text/html',
+                'Access-Control-Allow-Origin': '*'
+            },
+            'body': '''
+            <!DOCTYPE html>
+            <html>
+            <head>
+                <title>Gem Leads - Business Search</title>
+                <style>
+                    body { font-family: Arial, sans-serif; margin: 40px; background: #f5f5f5; }
+                    .container { max-width: 600px; margin: 0 auto; background: white; padding: 20px; border-radius: 8px; box-shadow: 0 2px 4px rgba(0,0,0,0.1); }
+                    h1 { color: #2c3e50; text-align: center; }
+                    input, button { margin: 10px 0; padding: 12px; width: 100%; border: 1px solid #ddd; border-radius: 4px; }
+                    button { background: #3498db; color: white; border: none; cursor: pointer; font-weight: bold; }
+                    button:hover { background: #2980b9; }
+                    #results { margin-top: 20px; padding: 10px; }
+                    .business-card { border: 1px solid #ddd; padding: 15px; margin: 10px 0; border-radius: 4px; }
+                </style>
+            </head>
+            <body>
+                <div class="container">
+                    <h1>Gem Leads</h1>
+                    <form id="searchForm">
+                        <input type="text" id="what" placeholder="Business Type (e.g., Plumber)" required>
+                        <input type="text" id="where" placeholder="Location (e.g., Dublin)" required>
+                        <button type="submit">Search</button>
+                    </form>
+                    <div id="results"></div>
+                </div>
+                <script>
+                    document.getElementById('searchForm').addEventListener('submit', async (e) => {
+                        e.preventDefault();
+                        const results = document.getElementById('results');
+                        results.innerHTML = '<p>Searching...</p>';
+                        
+                        try {
+                            const response = await fetch('/.netlify/functions/app', {
+                                method: 'POST',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({
+                                    what: document.getElementById('what').value,
+                                    where: document.getElementById('where').value
+                                })
+                            });
+                            
+                            const data = await response.json();
+                            if (data.success) {
+                                results.innerHTML = `<h3>${data.message}</h3>`;
+                                data.data.forEach(business => {
+                                    results.innerHTML += `
+                                        <div class="business-card">
+                                            <h4>${business.name}</h4>
+                                            <p><strong>Phone:</strong> ${business.phone}</p>
+                                            <p><strong>Address:</strong> ${business.address}</p>
+                                            <p><strong>Category:</strong> ${business.category}</p>
+                                        </div>
+                                    `;
+                                });
+                            } else {
+                                results.innerHTML = `<p style="color: red;">Error: ${data.error}</p>`;
+                            }
+                        } catch (error) {
+                            results.innerHTML = '<p style="color: red;">An error occurred while processing your request</p>';
+                        }
+                    });
+                </script>
+            </body>
+            </html>
+            '''
+        }
+    
+    # Handle POST request - perform the search
+    if event['httpMethod'] == 'POST':
+        try:
+            body = json.loads(event['body'])
+            what = body.get('what')
+            where = body.get('where')
+            
+            if not what or not where:
+                return {
+                    'statusCode': 400,
+                    'headers': {'Access-Control-Allow-Origin': '*'},
+                    'body': json.dumps({'error': 'Please provide both business type and location'})
+                }
+            
+            result = scrape_business_data(what, where)
+            
+            return {
+                'statusCode': 200 if result['success'] else 500,
+                'headers': {'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps(result)
+            }
+            
+        except Exception as e:
+            return {
+                'statusCode': 500,
+                'headers': {'Access-Control-Allow-Origin': '*'},
+                'body': json.dumps({'error': str(e)})
+            }
+    
+    # Handle unsupported methods
+    return {
+        'statusCode': 405,
+        'headers': {'Access-Control-Allow-Origin': '*'},
+        'body': json.dumps({'error': 'Method not allowed'})
+    } 
