@@ -8,7 +8,104 @@
     <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
     <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
     <style>
-        /* ... existing styles ... */
+        :root {
+            --primary-color: #6366f1;
+            --success-color: #22c55e;
+            --error-color: #ef4444;
+        }
+        
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+        
+        body {
+            font-family: 'Inter', sans-serif;
+            line-height: 1.5;
+            background: linear-gradient(135deg, #f0f7ff 0%, #ffffff 100%);
+            min-height: 100vh;
+        }
+        
+        .container {
+            max-width: 1200px;
+            margin: 0 auto;
+            padding: 0 20px;
+        }
+        
+        h1 {
+            font-size: 2.5rem;
+            color: #1e293b;
+            text-align: center;
+            margin: 2rem 0;
+        }
+        
+        .search-form {
+            max-width: 600px;
+            margin: 2rem auto;
+            padding: 2rem;
+            background: white;
+            border-radius: 12px;
+            box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+        }
+        
+        .form-control {
+            width: 100%;
+            padding: 12px;
+            margin-bottom: 20px;
+            border: 1px solid #e2e8f0;
+            border-radius: 8px;
+            font-size: 16px;
+            color: #1a202c;
+            background-color: white;
+            transition: all 0.3s ease;
+        }
+        
+        .form-control:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.1);
+        }
+        
+        select.form-control {
+            appearance: none;
+            background-image: url("data:image/svg+xml;charset=UTF-8,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 24 24' fill='none' stroke='currentColor' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3e%3cpolyline points='6 9 12 15 18 9'%3e%3c/polyline%3e%3c/svg%3e");
+            background-repeat: no-repeat;
+            background-position: right 1rem center;
+            background-size: 1em;
+        }
+        
+        optgroup {
+            font-weight: 600;
+            color: #4a5568;
+        }
+        
+        option {
+            padding: 8px;
+            font-weight: normal;
+        }
+        
+        button {
+            width: 100%;
+            padding: 12px;
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            border-radius: 8px;
+            font-size: 16px;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.3s ease;
+        }
+        
+        button:hover {
+            opacity: 0.9;
+        }
+        
+        button:disabled {
+            opacity: 0.7;
+            cursor: not-allowed;
+        }
         
         .render-results {
             margin-top: 20px;
@@ -168,15 +265,67 @@
     <section id="contact" class="contact">
         <div class="container">
             <h2>Start Mining Leads Today</h2>
-            <form class="contact-form animate__animated animate__fadeIn">
-                <div class="form-group">
-                    <input type="text" placeholder="Business Category" required>
-                </div>
-                <div class="form-group">
-                    <input type="text" placeholder="Location" required>
-                </div>
-                <button type="submit" class="cta-button">Search Leads</button>
-            </form>
+            <div class="search-form">
+                <form>
+                    <select name="business-category" class="form-control" required>
+                        <option value="">Select Business Category</option>
+                        <!-- Main Categories -->
+                        <optgroup label="Main Categories">
+                            <option value="Printing">Printing Services</option>
+                            <option value="Garda Siochana">Garda Siochana</option>
+                            <option value="Dry Cleaners">Dry Cleaners</option>
+                            <option value="Post Offices">Post Offices</option>
+                        </optgroup>
+                        
+                        <!-- Services -->
+                        <optgroup label="Services">
+                            <option value="Antique Auctions">Antique Auctions</option>
+                            <option value="Lactation Consultants">Lactation Consultants</option>
+                            <option value="Exhibition Centres">Exhibition Centres</option>
+                            <option value="Information Services">Information Services</option>
+                            <option value="Ironing Services">Ironing Services</option>
+                            <option value="Laundries">Laundries</option>
+                            <option value="Waste Recycling">Waste Recycling</option>
+                        </optgroup>
+                        
+                        <!-- Employment -->
+                        <optgroup label="Employment">
+                            <option value="Call Centres">Call Centres</option>
+                            <option value="Career Guidance">Career Guidance</option>
+                            <option value="Employment Agencies">Employment Agencies</option>
+                            <option value="Contract Employment">Contract Employment</option>
+                            <option value="Outplacement Agencies">Outplacement Agencies</option>
+                        </optgroup>
+                        
+                        <!-- Health & Professional -->
+                        <optgroup label="Health & Professional">
+                            <option value="Doctors">Doctors</option>
+                            <option value="Hairdressers">Hairdressers</option>
+                            <option value="Beauty Salons">Beauty Salons</option>
+                            <option value="Banks">Banks</option>
+                        </optgroup>
+                        
+                        <!-- Automotive -->
+                        <optgroup label="Automotive">
+                            <option value="Car Dismantlers">Car Dismantlers</option>
+                            <option value="Tyres">Tyres</option>
+                            <option value="Mechanics">Mechanics</option>
+                            <option value="Car Dealers">Car Dealers</option>
+                        </optgroup>
+                        
+                        <!-- Construction & Home -->
+                        <optgroup label="Construction & Home">
+                            <option value="Plumbers">Plumbers</option>
+                            <option value="Electricians">Electricians</option>
+                            <option value="Builders">Builders</option>
+                            <option value="Painters">Painters</option>
+                            <option value="Carpenters">Carpenters</option>
+                        </optgroup>
+                    </select>
+                    <input type="text" class="form-control" placeholder="Location" required>
+                    <button type="submit">Search Leads</button>
+                </form>
+            </div>
         </div>
     </section>
 
@@ -197,12 +346,17 @@
         </div>
     </footer>
     <script>
-        document.querySelector('.contact-form').addEventListener('submit', async (e) => {
+        document.querySelector('form').addEventListener('submit', async (e) => {
             e.preventDefault();
             
-            const category = e.target.querySelector('input[placeholder="Business Category"]').value;
+            const category = e.target.querySelector('select[name="business-category"]').value;
             const location = e.target.querySelector('input[placeholder="Location"]').value;
             const submitButton = e.target.querySelector('button[type="submit"]');
+            
+            if (!category) {
+                alert('Please select a business category');
+                return;
+            }
             
             // Show loading state
             submitButton.textContent = 'Searching...';
@@ -240,7 +394,7 @@
                 }
             } catch (error) {
                 submitButton.textContent = 'Error - Try Again';
-                submitButton.style.backgroundColor = '#ef4444';
+                submitButton.style.backgroundColor = 'var(--error-color)';
                 
                 // Reset after 3 seconds
                 setTimeout(() => {
