@@ -1,0 +1,257 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Gem Lead - Business Data Scraping Solution</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="{{ url_for('static', filename='css/styles.css') }}">
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/animate.css/4.1.1/animate.min.css">
+    <style>
+        /* ... existing styles ... */
+        
+        .render-results {
+            margin-top: 20px;
+            padding: 20px;
+            background: #f8fafc;
+            border-radius: 8px;
+            box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+        }
+        
+        .render-results h3 {
+            margin-bottom: 15px;
+            color: #1e293b;
+        }
+        
+        .render-results ul {
+            list-style: none;
+            padding: 0;
+        }
+        
+        .render-results li {
+            margin-bottom: 15px;
+            padding: 10px;
+            background: white;
+            border-radius: 4px;
+            border-left: 4px solid #3b82f6;
+        }
+        
+        .render-results small {
+            display: block;
+            margin-top: 5px;
+            color: #64748b;
+            font-style: italic;
+        }
+    </style>
+</head>
+<body>
+    <nav class="navbar">
+        <div class="container">
+            <div class="logo">💎 Gem Lead</div>
+            <div class="nav-links">
+                <a href="#features">Features</a>
+                <a href="#how-it-works">How it Works</a>
+                <a href="#pricing">Pricing</a>
+                <a href="#contact" class="cta-button">Get Started</a>
+            </div>
+        </div>
+    </nav>
+
+    <header class="hero">
+        <div class="container">
+            <div class="hero-content animate__animated animate__fadeIn">
+                <h1>Transform Business Data into Gold</h1>
+                <p>Extract valuable business leads from online directories with our intelligent scraping solution.</p>
+                <a href="#contact" class="cta-button pulse">Start Mining Leads</a>
+            </div>
+            <div class="hero-image animate__animated animate__slideInRight">
+                <img src="{{ url_for('static', filename='images/hero.svg') }}" alt="Data Mining Illustration">
+            </div>
+        </div>
+    </header>
+
+    <section id="features" class="features">
+        <div class="container">
+            <h2>Why Choose Gem Lead?</h2>
+            <div class="feature-grid">
+                <div class="feature-card animate__animated animate__fadeInUp">
+                    <div class="feature-icon">🎯</div>
+                    <h3>Precise Targeting</h3>
+                    <p>Search businesses by location and category to find your ideal prospects.</p>
+                </div>
+                <div class="feature-card animate__animated animate__fadeInUp" style="animation-delay: 0.2s">
+                    <div class="feature-icon">⚡</div>
+                    <h3>Lightning Fast</h3>
+                    <p>Get hundreds of business contacts in minutes, not hours.</p>
+                </div>
+                <div class="feature-card animate__animated animate__fadeInUp" style="animation-delay: 0.4s">
+                    <div class="feature-icon">📊</div>
+                    <h3>Clean Data</h3>
+                    <p>Validated emails and phone numbers, ready for your campaigns.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="how-it-works" class="how-it-works">
+        <div class="container">
+            <h2>How It Works</h2>
+            <div class="steps">
+                <div class="step animate__animated animate__fadeInLeft">
+                    <div class="step-number">1</div>
+                    <h3>Search</h3>
+                    <p>Enter your target business category and location.</p>
+                </div>
+                <div class="step animate__animated animate__fadeInLeft" style="animation-delay: 0.2s">
+                    <div class="step-number">2</div>
+                    <h3>Extract</h3>
+                    <p>Our AI scrapes and validates the business data.</p>
+                </div>
+                <div class="step animate__animated animate__fadeInLeft" style="animation-delay: 0.4s">
+                    <div class="step-number">3</div>
+                    <h3>Download</h3>
+                    <p>Get your leads in CSV format, ready to use.</p>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="pricing" class="pricing">
+        <div class="container">
+            <h2>Choose Your Plan</h2>
+            <div class="pricing-grid">
+                <div class="pricing-card animate__animated animate__fadeInUp">
+                    <div class="pricing-header">
+                        <h3>Starter</h3>
+                        <div class="price">€29<span>/month</span></div>
+                    </div>
+                    <ul class="pricing-features">
+                        <li>✓ 500 leads per month</li>
+                        <li>✓ Basic email validation</li>
+                        <li>✓ CSV exports</li>
+                        <li>✓ Email support</li>
+                    </ul>
+                    <a href="#contact" class="cta-button secondary">Get Started</a>
+                </div>
+                <div class="pricing-card featured animate__animated animate__fadeInUp" style="animation-delay: 0.2s">
+                    <div class="pricing-header">
+                        <h3>Professional</h3>
+                        <div class="price">€79<span>/month</span></div>
+                    </div>
+                    <ul class="pricing-features">
+                        <li>✓ 2,000 leads per month</li>
+                        <li>✓ Advanced email validation</li>
+                        <li>✓ Multiple export formats</li>
+                        <li>✓ Priority support</li>
+                        <li>✓ API access</li>
+                    </ul>
+                    <a href="#contact" class="cta-button">Get Started</a>
+                </div>
+                <div class="pricing-card animate__animated animate__fadeInUp" style="animation-delay: 0.4s">
+                    <div class="pricing-header">
+                        <h3>Enterprise</h3>
+                        <div class="price">€199<span>/month</span></div>
+                    </div>
+                    <ul class="pricing-features">
+                        <li>✓ Unlimited leads</li>
+                        <li>✓ Premium validation</li>
+                        <li>✓ Custom integrations</li>
+                        <li>✓ Dedicated support</li>
+                        <li>✓ White labeling</li>
+                    </ul>
+                    <a href="#contact" class="cta-button secondary">Get Started</a>
+                </div>
+            </div>
+        </div>
+    </section>
+
+    <section id="contact" class="contact">
+        <div class="container">
+            <h2>Start Mining Leads Today</h2>
+            <form class="contact-form animate__animated animate__fadeIn">
+                <div class="form-group">
+                    <input type="text" placeholder="Business Category" required>
+                </div>
+                <div class="form-group">
+                    <input type="text" placeholder="Location" required>
+                </div>
+                <button type="submit" class="cta-button">Search Leads</button>
+            </form>
+        </div>
+    </section>
+
+    <footer class="footer">
+        <div class="container">
+            <div class="footer-content">
+                <div class="footer-logo">💎 Gem Lead</div>
+                <div class="footer-links">
+                    <a href="#features">Features</a>
+                    <a href="#how-it-works">How it Works</a>
+                    <a href="#pricing">Pricing</a>
+                    <a href="#contact">Contact</a>
+                </div>
+            </div>
+            <div class="footer-bottom">
+                <p>&copy; 2024 Gem Lead. All rights reserved.</p>
+            </div>
+        </div>
+    </footer>
+    <script>
+        document.querySelector('.contact-form').addEventListener('submit', async (e) => {
+            e.preventDefault();
+            
+            const category = e.target.querySelector('input[placeholder="Business Category"]').value;
+            const location = e.target.querySelector('input[placeholder="Location"]').value;
+            const submitButton = e.target.querySelector('button[type="submit"]');
+            
+            // Show loading state
+            submitButton.textContent = 'Searching...';
+            submitButton.disabled = true;
+            
+            try {
+                const response = await fetch('/search_businesses', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({
+                        what: category,
+                        where: location
+                    })
+                });
+                
+                const data = await response.json();
+                
+                if (data.success) {
+                    submitButton.textContent = 'Success!';
+                    submitButton.style.backgroundColor = 'var(--success-color)';
+                    
+                    // Automatically trigger download
+                    window.location.href = `/download/${data.filename}`;
+                    
+                    // Reset search button after 3 seconds
+                    setTimeout(() => {
+                        submitButton.textContent = 'Search Leads';
+                        submitButton.style.backgroundColor = '';
+                        submitButton.disabled = false;
+                    }, 3000);
+                } else {
+                    throw new Error(data.message);
+                }
+            } catch (error) {
+                submitButton.textContent = 'Error - Try Again';
+                submitButton.style.backgroundColor = '#ef4444';
+                
+                // Reset after 3 seconds
+                setTimeout(() => {
+                    submitButton.textContent = 'Search Leads';
+                    submitButton.style.backgroundColor = '';
+                    submitButton.disabled = false;
+                }, 3000);
+                
+                console.error('Error:', error);
+            }
+        });
+    </script>
+</body>
+</html> 

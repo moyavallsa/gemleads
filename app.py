@@ -20,13 +20,8 @@ import argparse
 from shutil import which
 from gemini_analyzer import GeminiAnalyzer
 from pathlib import Path
-from golden_pages_scraper import GoldenPagesScraper
 
 app = Flask(__name__)
-
-# Configure downloads directory
-DOWNLOADS_DIR = os.environ.get('DOWNLOADS_DIR', str(Path.home() / "Downloads"))
-os.makedirs(DOWNLOADS_DIR, exist_ok=True)
 
 class GoldenPagesScraper:
     def __init__(self):
@@ -98,7 +93,7 @@ class GoldenPagesScraper:
         ]
         
         # Set up downloads directory
-        self.downloads_dir = DOWNLOADS_DIR
+        self.downloads_dir = str(Path.home() / "Downloads")
         if not os.path.exists(self.downloads_dir):
             os.makedirs(self.downloads_dir)
 
@@ -842,7 +837,8 @@ def search_businesses():
     
     if filename:
         # Clean any email addresses during scraping
-        file_path = os.path.join(DOWNLOADS_DIR, filename)
+        downloads_dir = str(Path.home() / "Downloads")
+        file_path = os.path.join(downloads_dir, filename)
         
         if os.path.exists(file_path):
             # Read the CSV
@@ -896,10 +892,11 @@ def clean_email(email: str) -> str:
 def download(filename):
     """Download the CSV file."""
     try:
-        file_path = os.path.join(DOWNLOADS_DIR, filename)
+        downloads_dir = str(Path.home() / "Downloads")
+        file_path = os.path.join(downloads_dir, filename)
         
         if not os.path.exists(file_path):
-            return jsonify({'error': f'File not found: {filename}'}), 404
+            return jsonify({'error': f'File not found in Downloads folder: {filename}'}), 404
             
         return send_file(
             file_path,
@@ -1040,5 +1037,4 @@ def scrape_search_results(search_term, location):
         driver.quit()
 
 if __name__ == '__main__':
-    port = int(os.environ.get('PORT', 5007))
-    app.run(host='0.0.0.0', port=port) 
+    app.run(debug=True, port=5007) 
